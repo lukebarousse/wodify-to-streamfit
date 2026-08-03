@@ -532,8 +532,10 @@ function renderResults() {
   if (OUT.manualEntry.length) {
     me.innerHTML = `<div class="note">✍ ${OUT.manualEntry.length} rep-based gymnastics PR${OUT.manualEntry.length > 1 ? "s" : ""}
       can't go through StreamFit's importer — add these by hand in the PRs tab afterward:
-      <ul class="manual">${OUT.manualEntry.map(m =>
-        `<li><b>${m.name}</b> — ${m.result.replace(/^1 x /, "")} reps on ${m.date}</li>`).join("")}</ul></div>`;
+      <ul class="manual">${OUT.manualEntry.map(m => {
+        const n = m.result.replace(/^1 x /, "");
+        return `<li><b>${m.name}</b> — ${n} rep${n === "1" ? "" : "s"} on ${m.date}</li>`;
+      }).join("")}</ul></div>`;
   } else me.innerHTML = "";
 
   const ex = document.getElementById("excluded");
