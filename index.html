@@ -66,13 +66,15 @@
   .autobox { border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 10px;
              padding: 12px 14px; margin-bottom: 14px; }
   .autobox .title { font-weight: 700; font-size: .92rem; margin-bottom: 6px; }
-  .sumrow { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 14px; }
-  .sumchip { border-radius: 10px; padding: 9px 14px; font-size: .86rem; font-weight: 600;
-             border: 1px solid var(--border); }
-  .sumchip b { font-size: 1.05rem; }
-  .sumchip.ok { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
-  .sumchip.act { background: var(--card); border-color: var(--accent); color: var(--text); }
-  .sumchip.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+  .guide { border: 1px solid var(--border); border-radius: 12px; padding: 2px 16px; margin: 0 0 16px; }
+  .grow { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border);
+          font-size: .92rem; align-items: flex-start; }
+  .grow:last-child { border-bottom: none; }
+  .grow .gicon { flex: none; width: 24px; text-align: center; font-weight: 700; }
+  .grow.g-ok .gicon { color: var(--accent); }
+  .grow.g-act .gicon { color: var(--text); }
+  .grow.g-warn .gicon { color: var(--warn); }
+  .grow .gsub { display: block; color: var(--muted); font-size: .82rem; margin-top: 2px; }
   .autorow { display: flex; align-items: center; gap: 8px; font-size: .88rem; padding: 3px 0; }
   .autorow .arrow { color: var(--muted); }
   .autorow a { margin-left: auto; font-size: .8rem; color: var(--muted); cursor: pointer;
@@ -157,18 +159,10 @@
   <div class="card hidden" id="step2">
     <div class="step-tag">Step 2 · Match your movements</div>
     <h2>Match your movements to StreamFit's catalog</h2>
-    <div id="matchsummary"></div>
-    <p class="sub" style="margin-bottom:10px" id="matchsub">Most of your movement names matched
-    StreamFit's catalog exactly. The rest are below — pick the best match for each; we've
-    pre-selected our best guess.</p>
-    <div class="oknote" style="margin:0 0 14px">You're only choosing the <b>movement name</b> here.
-    The reps and weight of every individual result import automatically —
-    <code>1 x 3 @ 315 lbs</code> becomes a 3-rep max at 315 lbs, <code>1 x 1 @ 325 lbs</code> a
-    1-rep max at 325. Nothing to type.</div>
-    <div id="reponly-note"></div>
+    <div id="guide"></div>
     <div class="progress" id="mapprogress"></div>
     <div id="mapcards"></div>
-    <button class="btn" id="tostep3">Continue →</button>
+    <button class="btn" id="tostep3">Continue to Review →</button>
   </div>
 
   <!-- STEP 3: Review the cleaned data -->
@@ -361,29 +355,28 @@ function buildCleanupStep() {
   for (const [name, info] of seen) {
     AMBIG.push({ name, ...info, suggestions: suggestMovements(name) });
   }
-  // top summary: make the silent successes visible
+  // one guide panel: what happened, what to do, what can't import
   const nAuto = exactNames.size + AUTO.length;
   const nTotal = nAuto + AMBIG.length;
-  const sum = document.getElementById("matchsummary");
-  sum.innerHTML = `<div class="sumrow">
-    <div class="sumchip ok">✓ <b>${nAuto}</b> of ${nTotal} names matched automatically</div>
-    ${AMBIG.length ? `<div class="sumchip act">👇 <b>${AMBIG.length}</b> need your call below</div>` : ""}
-    ${repOnlyNames.size ? `<div class="sumchip warn">✍ <b>${repOnlyNames.size}</b> gymnastics — manual entry later</div>` : ""}
-  </div>`;
-  document.getElementById("matchsub").textContent = AMBIG.length
-    ? `${nAuto} of your ${nTotal} movement names matched StreamFit's catalog automatically. ` +
-      `The ${AMBIG.length} below need your call — pick the best match for each; we've pre-selected our best guess.`
-    : `All ${nTotal} of your movement names matched StreamFit's catalog automatically — nothing to do here.`;
-
-  // rep-based rows never get matching cards — they can't import anyway
-  const rn = document.getElementById("reponly-note");
   const pureRepOnly = [...repOnlyNames].filter(n => !MAPPINGS[n] && !AMBIG.some(a => a.name === n));
-  rn.innerHTML = pureRepOnly.length
-    ? `<div class="note" style="margin:0 0 14px">✍ Heads-up: due to a StreamFit importer limitation,
-       <b>rep-based (gymnastics) PRs can't be imported</b> — so there's nothing to match for:
-       ${pureRepOnly.map(n => `<b>${esc(n)}</b>`).join(", ")}.
-       You'll get a list at the end to enter by hand in the PRs tab.</div>`
-    : "";
+  const rows = [];
+  rows.push(`<div class="grow g-ok"><span class="gicon">✓</span><div>
+    <b>${nAuto} of ${nTotal}</b> movement names matched StreamFit's catalog automatically — nothing to do for those.
+    <span class="gsub">Each result's reps &amp; weight also import automatically
+    (<code>1 x 3 @ 315 lbs</code> = 3-rep max at 315) — you never type scores.</span></div></div>`);
+  if (AMBIG.length) {
+    rows.push(`<div class="grow g-act"><span class="gicon">${AMBIG.length}</span><div>
+      <b>names below need your pick</b> — tap the right movement for each (our best guess is pre-selected).
+      <span class="gsub">No good match? Use the search box, or Skip Entry to leave those results out.
+      Red cards are ones we couldn't guess — they'll be skipped unless you pick a match.</span></div></div>`);
+  }
+  if (pureRepOnly.length) {
+    rows.push(`<div class="grow g-warn"><span class="gicon">✍</span><div>
+      <b>${pureRepOnly.length} gymnastics name${pureRepOnly.length > 1 ? "s" : ""} won't import</b>
+      (${pureRepOnly.map(esc).join(", ")}) — StreamFit's importer can't handle rep-based PRs.
+      <span class="gsub">Nothing to do here; you'll get a short list at the end to enter by hand.</span></div></div>`);
+  }
+  document.getElementById("guide").innerHTML = rows.join("");
   maxReached = 1;  // a fresh file invalidates any previously reached steps
   if (!AMBIG.length && !AUTO.length && !pureRepOnly.length) { toReview(); return; }
   buildCleanupRender();
@@ -526,10 +519,8 @@ function updateProgress() {
   const skipped = AMBIG.filter(a => MAPPINGS[a.name] === "__SKIP__").length;
   const matched = AMBIG.filter(a => MAPPINGS[a.name] && MAPPINGS[a.name] !== "__SKIP__").length;
   const left = AMBIG.length - matched - skipped;
-  const parts = [`${matched} matched`];
-  if (skipped) parts.push(`${skipped} skipped`);
-  parts.push(left ? `${left} still to resolve` : "all set — continue when ready ✓");
-  document.getElementById("mapprogress").textContent = parts.join(" · ");
+  document.getElementById("mapprogress").textContent =
+    left ? `👇 ${left} still to resolve — pick a match or Skip Entry` : "";
   document.getElementById("tostep3").disabled = left > 0;
 }
 document.getElementById("tostep3").onclick = () => toReview();
