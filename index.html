@@ -57,11 +57,12 @@
                       background: none; color: var(--muted); font-size: .78rem; font-weight: 600;
                       cursor: pointer; padding: 4px 10px; border-radius: 8px; }
   .mapcard .skipbtn:hover { color: #dc2626; border-color: #dc2626; background: rgba(220,38,38,.08); }
-  .mapcard.skipped { opacity: .6; padding: 10px 14px; border-style: dashed; }
-  .mapcard.skipped .mapbody { display: none; }
-  .mapcard .skiprow { display: none; font-size: .85rem; color: var(--muted); }
-  .mapcard.skipped .skiprow { display: block; }
-  .mapcard .skiprow a { color: var(--accent); cursor: pointer; }
+  .mapcard.skipped { border: 2px solid #dc2626; background: rgba(220,38,38,.05); }
+  .mapcard .skipnote { display: none; color: #dc2626; font-size: .85rem; font-weight: 600;
+                       margin: 4px 0 10px; }
+  .mapcard.skipped .skipnote { display: block; }
+  .mapcard.skipped .skipbtn { color: var(--accent); border-color: var(--accent); }
+  .mapcard.skipped .skipbtn:hover { background: var(--accent-soft); }
   .autobox { border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 10px;
              padding: 12px 14px; margin-bottom: 14px; }
   .autobox .title { font-weight: 700; font-size: .92rem; margin-bottom: 6px; }
@@ -414,9 +415,10 @@ function makeCard(a, i) {
   const meta = `${a.count} result${a.count > 1 ? "s" : ""} · e.g. ${a.sample}` +
     (why ? `  →  ${why}` : "") +
     (a.desc ? `\n${a.desc.slice(0, 110)}${a.desc.length > 110 ? "…" : ""}` : "");
-  card.innerHTML = `<button class="skipbtn" title="Leave these results out of the import">Skip Entry ✕</button>
+  card.innerHTML = `<button class="skipbtn">Skip Entry ✕</button>
     <div class="mapname"></div>
-    <div class="skiprow">Skipped — these results won't be imported. <a>Undo</a></div>
+    <div class="skipnote">⚠ These results will be skipped — they won't be imported.
+    Pick a match below (or search) to keep them.</div>
     <div class="mapbody"><div class="mapmeta"></div>
     <div class="chips"></div>
     <div class="search"><input type="text" placeholder="…or search all ${MOVES.length} StreamFit movements">
@@ -432,25 +434,34 @@ function makeCard(a, i) {
     return b;
   };
   a.suggestions.forEach(s => addChip(s, s));
-  if (a.suggestions.length && !MAPPINGS[a.name])
+  const btn = card.querySelector(".skipbtn");
+  const setBtn = () => { btn.textContent = card.classList.contains("skipped") ? "Fix Entry" : "Skip Entry ✕"; };
+  const applySkip = () => {
+    MAPPINGS[a.name] = "__SKIP__";
+    card.classList.add("skipped"); card.classList.remove("resolved");
+    setBtn(); updateProgress();
+  };
+  if (MAPPINGS[a.name] === "__SKIP__" || (!a.suggestions.length && !MAPPINGS[a.name])) {
+    // no confident suggestion: default to skipped, loudly — the user opts back in
+    applySkip();
+  } else if (a.suggestions.length && !MAPPINGS[a.name]) {
     selectMapping(i, a.suggestions[0], chipbox.firstChild);
-  else if (MAPPINGS[a.name] && MAPPINGS[a.name] !== "__SKIP__") {
+  } else if (MAPPINGS[a.name]) {
     const hit = [...chipbox.children].find(c => c.textContent === MAPPINGS[a.name]) ||
                 addChip(MAPPINGS[a.name], MAPPINGS[a.name]);
     selectMapping(i, MAPPINGS[a.name], hit);
   }
-  // skip / undo
-  card.querySelector(".skipbtn").onclick = () => {
-    MAPPINGS[a.name] = "__SKIP__";
-    card.classList.add("skipped"); card.classList.remove("resolved");
-    updateProgress();
-  };
-  card.querySelector(".skiprow a").onclick = () => {
-    delete MAPPINGS[a.name];
-    card.classList.remove("skipped");
-    const sel = card.querySelector(".chip.sel");
-    if (sel) MAPPINGS[a.name] = sel.textContent, card.classList.add("resolved");
-    updateProgress();
+  setBtn();
+  btn.onclick = () => {
+    if (card.classList.contains("skipped")) {
+      // Fix Entry: restore prior chip choice if any, else leave unresolved and focus search
+      delete MAPPINGS[a.name];
+      card.classList.remove("skipped");
+      const sel = card.querySelector(".chip.sel");
+      if (sel) { MAPPINGS[a.name] = sel.textContent; card.classList.add("resolved"); }
+      else card.querySelector("input").focus();
+      setBtn(); updateProgress();
+    } else applySkip();
   };
   // search box
   const input = card.querySelector("input");
@@ -480,6 +491,8 @@ function selectMapping(i, value, btn) {
   MAPPINGS[a.name] = value;
   const card = btn.closest(".mapcard");
   card.classList.remove("skipped");
+  const sb = card.querySelector(".skipbtn");
+  if (sb) sb.textContent = "Skip Entry ✕";
   card.querySelectorAll(".chip").forEach(c => c.classList.remove("sel"));
   btn.classList.add("sel");
   card.classList.add("resolved");
@@ -686,10 +699,22 @@ function renderResults() {
   } else me.innerHTML = "";
 
   const ex = document.getElementById("excluded");
+  const blank = OUT.excluded.filter(([, why]) => why === "blank result").length;
+  const zero = OUT.excluded.filter(([, why]) => why === "0-lb result").length;
+  const skippedByName = {};
+  OUT.skipped.forEach(r => { skippedByName[r.name] = (skippedByName[r.name] || 0) + 1; });
+  const reviewRemoved = OUT.counts.skipped - OUT.skipped.length;
   const bits = [];
-  if (OUT.counts.excluded) bits.push(`${OUT.counts.excluded} row(s) excluded (blank or 0-lb results — no usable data)`);
-  if (OUT.counts.skipped) bits.push(`${OUT.counts.skipped} row(s) left out at your request`);
-  ex.innerHTML = bits.length ? `<div class="note">ℹ ${bits.join(" · ")}</div>` : "";
+  if (blank) bits.push(`<li>${blank} row${blank > 1 ? "s" : ""} had <b>no recorded result</b> in Wodify — nothing to import</li>`);
+  if (zero) bits.push(`<li>${zero} row${zero > 1 ? "s" : ""} ${zero > 1 ? "were" : "was"} recorded at <b>0 lbs</b> — no usable data</li>`);
+  Object.entries(skippedByName).forEach(([n, c]) =>
+    bits.push(`<li>"<b>${esc(n)}</b>" — ${c} row${c > 1 ? "s" : ""} (you chose <i>Skip Entry</i> in the Match step)</li>`));
+  if (reviewRemoved) bits.push(`<li>${reviewRemoved} row${reviewRemoved > 1 ? "s" : ""} you removed in the Review step</li>`);
+  ex.innerHTML = bits.length
+    ? `<div class="note">ℹ <b>Also left out of your files</b>${OUT.manualEntry.length ?
+        " (these are different rows from the gymnastics PRs listed above)" : ""}:
+        <ul class="manual">${bits.join("")}</ul></div>`
+    : "";
 }
 
 function download(name, text) {
