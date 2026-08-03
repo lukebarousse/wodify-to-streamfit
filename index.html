@@ -26,6 +26,19 @@
   h1 { font-size: 1.6rem; margin: 8px 0 4px; }
   h2 { font-size: 1.15rem; margin: 0 0 12px; }
   .sub { color: var(--muted); margin: 0 0 24px; }
+  #stepper { display: flex; gap: 4px; margin-bottom: 18px; flex-wrap: wrap; }
+  #stepper .snav { flex: 1; min-width: 90px; display: flex; align-items: center; gap: 7px;
+                   border: 1px solid var(--border); background: var(--card); border-radius: 10px;
+                   padding: 8px 10px; font-size: .8rem; color: var(--muted); cursor: default;
+                   user-select: none; }
+  #stepper .snav .dot { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center;
+                        justify-content: center; font-size: .72rem; font-weight: 700;
+                        background: var(--border); color: var(--muted); flex: none; }
+  #stepper .snav.reached { cursor: pointer; color: var(--text); }
+  #stepper .snav.reached:hover { border-color: var(--accent); }
+  #stepper .snav.reached .dot { background: var(--accent-soft); color: var(--accent); }
+  #stepper .snav.active { border-color: var(--accent); color: var(--text); font-weight: 600; }
+  #stepper .snav.active .dot { background: var(--accent); color: #fff; }
   .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
           padding: 20px; margin-bottom: 16px; }
   .step-tag { display: inline-block; font-size: .75rem; font-weight: 700; letter-spacing: .05em;
@@ -117,6 +130,8 @@
   <p class="sub">Turn your Wodify performance-history export into files StreamFit's importer accepts —
   with dates fixed, workouts preserved, and movement names matched to StreamFit's catalog.</p>
 
+  <nav id="stepper"></nav>
+
   <!-- STEP 1: Upload -->
   <div class="card" id="step1">
     <div class="step-tag">Step 1 · Your Wodify file</div>
@@ -140,6 +155,7 @@
     The reps and weight of every individual result import automatically —
     <code>1 x 3 @ 315 lbs</code> becomes a 3-rep max at 315 lbs, <code>1 x 1 @ 325 lbs</code> a
     1-rep max at 325. Nothing to type.</div>
+    <div id="reponly-note"></div>
     <div class="progress" id="mapprogress"></div>
     <div id="mapcards"></div>
     <button class="btn" id="tostep3">Continue →</button>
@@ -314,8 +330,10 @@ function buildCleanupStep() {
   document.getElementById("parse-error").classList.add("hidden");
   MAPPINGS = {}; AMBIG = []; AUTO = [];
   const seen = new Map();
+  const repOnlyNames = new Set();
   for (const r of liftRows()) {
     if (!r.result || /@ 0 lbs?$/.test(r.result)) continue;   // excluded later anyway
+    if (!/@/.test(r.result)) { repOnlyNames.add(r.name); continue; }  // rep-based: can't import, no card
     if (MAPPINGS[r.name]) continue;
     const exact = MOVES_BY_KEY.get(key(r.name));
     if (exact) { MAPPINGS[r.name] = exact; continue; }
@@ -332,9 +350,19 @@ function buildCleanupStep() {
   for (const [name, info] of seen) {
     AMBIG.push({ name, ...info, suggestions: suggestMovements(name) });
   }
-  if (!AMBIG.length && !AUTO.length) { computeOutputs(); renderReview(); return; }
+  // rep-based rows never get matching cards — they can't import anyway
+  const rn = document.getElementById("reponly-note");
+  const pureRepOnly = [...repOnlyNames].filter(n => !MAPPINGS[n] && !AMBIG.some(a => a.name === n));
+  rn.innerHTML = pureRepOnly.length
+    ? `<div class="note" style="margin:0 0 14px">✍ Heads-up: due to a StreamFit importer limitation,
+       <b>rep-based (gymnastics) PRs can't be imported</b> — so there's nothing to match for:
+       ${pureRepOnly.map(n => `<b>${esc(n)}</b>`).join(", ")}.
+       You'll get a list at the end to enter by hand in the PRs tab.</div>`
+    : "";
+  maxReached = 1;  // a fresh file invalidates any previously reached steps
+  if (!AMBIG.length && !AUTO.length && !pureRepOnly.length) { toReview(); return; }
   buildCleanupRender();
-  show("step2");
+  goStep(2);
 }
 
 // user disagreed with an auto-match: turn it into a normal decision card
@@ -464,8 +492,8 @@ function updateProgress() {
     `${done} of ${AMBIG.length} resolved` + (skipped ? ` (${skipped} skipped)` : "");
   document.getElementById("tostep3").disabled = done < AMBIG.length;
 }
-document.getElementById("tostep3").onclick = () => { computeOutputs(); renderReview(); };
-document.getElementById("toDownloads").onclick = finishReview;
+document.getElementById("tostep3").onclick = () => toReview();
+document.getElementById("toDownloads").onclick = () => goStep(4);
 
 /* ============ transform (mirrors the battle-tested python) ============ */
 function openRename(name, date) {
@@ -497,13 +525,17 @@ function computeOutputs() {
   for (const r of liftRows()) {
     if (!r.result) { EXCLUDED.push([r, "blank result"]); continue; }
     if (/@ 0 lbs?$/.test(r.result)) { EXCLUDED.push([r, "0-lb result"]); continue; }
+    if (!/@/.test(r.result)) {   // rep-only results: importer can't parse — manual entry list
+      // best-effort canonical name for the checklist (no user matching required)
+      const fuzzy = MOVES_BY_FUZZY.get(fuzzyKey(r.name));
+      const mName = (MAPPINGS[r.name] && MAPPINGS[r.name] !== "__SKIP__" && MAPPINGS[r.name]) ||
+        MOVES_BY_KEY.get(key(r.name)) || (fuzzy && fuzzy.length === 1 ? fuzzy[0] : r.name);
+      MANUAL.push({ name: mName, date: usDate(r.date), result: r.result });
+      continue;
+    }
     const mapped = MAPPINGS[r.name];
     if (mapped === "__SKIP__") { SKIPPED.push(r); continue; }
     if (!mapped) { EXCLUDED.push([r, "unmapped"]); continue; }
-    if (!/@/.test(r.result)) {   // rep-only results: importer can't parse — manual entry list
-      MANUAL.push({ name: mapped, date: usDate(r.date), result: r.result });
-      continue;
-    }
     let comment = r.comment;
     if (mapped !== r.name) comment = (comment + ` [Wodify name: ${r.name}]`).trim();
     PRE.push({
@@ -607,8 +639,10 @@ function renderReview() {
       they'll be listed with your downloads.`;
     host.appendChild(d);
   }
-  show("stepReview");
 }
+const mappingsSig = () => JSON.stringify(MAPPINGS);
+let lastComputeSig = null;
+function toReview() { computeOutputs(); renderReview(); lastComputeSig = mappingsSig(); goStep(3); }
 
 function finishReview() {
   OUT = {
@@ -641,11 +675,13 @@ function renderResults() {
 
   const me = document.getElementById("manual-entry");
   if (OUT.manualEntry.length) {
-    me.innerHTML = `<div class="note">✍ ${OUT.manualEntry.length} rep-based gymnastics PR${OUT.manualEntry.length > 1 ? "s" : ""}
-      can't go through StreamFit's importer — add these by hand in the PRs tab afterward:
+    me.innerHTML = `<div class="note">✍ <b>Due to a StreamFit importer limitation, rep-based
+      (gymnastics) PRs can't be imported</b> — the importer only understands weighted results.
+      After importing your files, add these ${OUT.manualEntry.length} by hand:
+      profile → <b>PRs</b> tab → search the movement → add the score with its date.
       <ul class="manual">${OUT.manualEntry.map(m => {
         const n = m.result.replace(/^1 x /, "");
-        return `<li><b>${m.name}</b> — ${n} rep${n === "1" ? "" : "s"} on ${m.date}</li>`;
+        return `<li><b>${esc(m.name)}</b> — ${n} rep${n === "1" ? "" : "s"} on ${m.date}</li>`;
       }).join("")}</ul></div>`;
   } else me.innerHTML = "";
 
@@ -654,8 +690,6 @@ function renderResults() {
   if (OUT.counts.excluded) bits.push(`${OUT.counts.excluded} row(s) excluded (blank or 0-lb results — no usable data)`);
   if (OUT.counts.skipped) bits.push(`${OUT.counts.skipped} row(s) left out at your request`);
   ex.innerHTML = bits.length ? `<div class="note">ℹ ${bits.join(" · ")}</div>` : "";
-
-  show("step3"); document.getElementById("step4").classList.remove("hidden");
 }
 
 function download(name, text) {
@@ -667,10 +701,47 @@ function download(name, text) {
 document.getElementById("dl-prs").onclick = () => download("performance_results_prs.csv", OUT.prs);
 document.getElementById("dl-bw").onclick = () => download("performance_results_time_exercises.csv", OUT.bw);
 
-/* ============ wiring ============ */
+/* ============ stepper navigation ============ */
+const STEPS = [
+  { n: 1, label: "Upload", card: "step1" },
+  { n: 2, label: "Match", card: "step2" },
+  { n: 3, label: "Review", card: "stepReview" },
+  { n: 4, label: "Download", card: "step3" },
+  { n: 5, label: "Import", card: "step4" },
+];
+let currentStep = 1, maxReached = 1;
+
+function goStep(n) {
+  // keep later steps fresh when navigating via the stepper
+  if (n === 3 && lastComputeSig !== null && mappingsSig() !== lastComputeSig) {
+    computeOutputs(); renderReview(); lastComputeSig = mappingsSig();
+  }
+  if (n === 4 && (PRE.length || BWE.length)) finishReview();
+  if (n > maxReached) maxReached = n;
+  if (n === 4 && maxReached < 5) maxReached = 5;  // import instructions unlock with downloads
+  currentStep = n;
+  STEPS.forEach(s => document.getElementById(s.card).classList.toggle("hidden", s.n !== n));
+  renderStepper();
+  window.scrollTo({ top: 0 });
+}
+
+function renderStepper() {
+  const nav = document.getElementById("stepper");
+  nav.innerHTML = "";
+  STEPS.forEach(s => {
+    const d = document.createElement("div");
+    d.className = "snav" + (s.n === currentStep ? " active" : "") + (s.n <= maxReached ? " reached" : "");
+    d.innerHTML = `<span class="dot">${s.n <= maxReached && s.n < currentStep ? "✓" : s.n}</span><span>${s.label}</span>`;
+    if (s.n <= maxReached && s.n !== currentStep) d.onclick = () => goStep(s.n);
+    nav.appendChild(d);
+  });
+}
+renderStepper();
+
+// legacy shim for the few remaining call sites
 function show(id) {
-  ["step2", "stepReview", "step3"].forEach(s => document.getElementById(s).classList.add("hidden"));
-  document.getElementById(id).classList.remove("hidden");
+  const s = STEPS.find(x => x.card === id);
+  if (s) goStep(s.n);
 }
 const dz = document.getElementById("dropzone");
 const fi = document.getElementById("fileinput");
