@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wodify → StreamFit Migration Helper</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="taxonomy.js"></script>
+<style>
+  :root {
+    --bg: #f7f8fa; --card: #ffffff; --text: #1a1d21; --muted: #5f6670;
+    --accent: #16a34a; --accent-soft: #dcfce7; --warn: #b45309; --warn-soft: #fef3c7;
+    --border: #e2e5ea; --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101315; --card: #1a1f23; --text: #e8eaed; --muted: #9aa3ad;
+      --accent: #4ade80; --accent-soft: #14331f; --warn: #fbbf24; --warn-soft: #3a2c0a;
+      --border: #2c3238;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--text); line-height: 1.55; }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 24px 16px 80px; }
+  h1 { font-size: 1.6rem; margin: 8px 0 4px; }
+  h2 { font-size: 1.15rem; margin: 0 0 12px; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+          padding: 20px; margin-bottom: 16px; }
+  .step-tag { display: inline-block; font-size: .75rem; font-weight: 700; letter-spacing: .05em;
+              text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+  #dropzone { border: 2px dashed var(--border); border-radius: 12px; padding: 44px 20px;
+              text-align: center; cursor: pointer; transition: border-color .15s, background .15s; }
+  #dropzone.drag { border-color: var(--accent); background: var(--accent-soft); }
+  #dropzone strong { display: block; font-size: 1.05rem; margin-bottom: 4px; }
+  #dropzone span { color: var(--muted); font-size: .9rem; }
+  .privacy { font-size: .82rem; color: var(--muted); text-align: center; margin-top: 10px; }
+  .hidden { display: none; }
+  .mapcard { border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+  .mapcard.resolved { border-color: var(--accent); }
+  .mapname { font-weight: 700; }
+  .mapmeta { font-size: .82rem; color: var(--muted); margin: 2px 0 10px; white-space: pre-wrap; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { border: 1.5px solid var(--border); background: none; color: var(--text); border-radius: 999px;
+          padding: 6px 14px; font-size: .88rem; cursor: pointer; }
+  .chip:hover { border-color: var(--accent); }
+  .chip.sel { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .chip.skip.sel { background: var(--warn); border-color: var(--warn); }
+  .search { margin-top: 8px; }
+  .search input { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
+                  background: var(--bg); color: var(--text); font-size: .9rem; }
+  .opts { max-height: 150px; overflow-y: auto; margin-top: 4px; border: 1px solid var(--border);
+          border-radius: 8px; }
+  .opts div { padding: 6px 10px; cursor: pointer; font-size: .88rem; }
+  .opts div:hover { background: var(--accent-soft); }
+  .btn { display: inline-block; background: var(--accent); color: #fff; border: none; font-size: 1rem;
+         font-weight: 700; padding: 12px 22px; border-radius: 10px; cursor: pointer; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.secondary { background: none; color: var(--text); border: 1.5px solid var(--border); }
+  .stat { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border);
+          font-size: .95rem; }
+  .stat:last-child { border-bottom: none; }
+  .stat b { font-variant-numeric: tabular-nums; }
+  .note { background: var(--warn-soft); color: var(--warn); border-radius: 8px; padding: 10px 14px;
+          font-size: .88rem; margin-top: 12px; }
+  .oknote { background: var(--accent-soft); color: var(--accent); border-radius: 8px; padding: 10px 14px;
+            font-size: .88rem; margin-top: 12px; }
+  ol.next li { margin-bottom: 10px; }
+  code { font-family: var(--mono); font-size: .85em; background: var(--bg); padding: 1px 5px; border-radius: 4px; }
+  .dl { display: flex; gap: 12px; flex-wrap: wrap; margin: 14px 0; }
+  .progress { font-size: .85rem; color: var(--muted); margin-bottom: 10px; }
+  footer { text-align: center; color: var(--muted); font-size: .8rem; margin-top: 40px; }
+  ul.manual { margin: 8px 0 0; padding-left: 20px; font-size: .9rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Wodify → StreamFit Migration Helper</h1>
+  <p class="sub">Turn your Wodify performance-history export into files StreamFit's importer accepts —
+  with dates fixed, workouts preserved, and movement names matched to StreamFit's catalog.</p>
+
+  <!-- STEP 1: Upload -->
+  <div class="card" id="step1">
+    <div class="step-tag">Step 1 · Your Wodify file</div>
+    <div id="dropzone">
+      <strong>Drop your Wodify export here</strong>
+      <span>or click to choose the file — it looks like <code>UserId1234567_PerformanceResults_*.xlsx</code><br>
+      (the file Wodify support emailed you; .xlsx or .csv both work)</span>
+      <input type="file" id="fileinput" accept=".xlsx,.csv" style="display:none">
+    </div>
+    <p class="privacy">🔒 Everything runs in your browser. Your data is never uploaded anywhere.</p>
+    <div id="parse-error" class="note hidden"></div>
+  </div>
+
+  <!-- STEP 2: Movement cleanup -->
+  <div class="card hidden" id="step2">
+    <div class="step-tag">Step 2 · Match your movements</div>
+    <h2>A few movement names need your call</h2>
+    <p class="sub" style="margin-bottom:14px">StreamFit needs exact movement names. Pick the best match for each —
+    we've pre-selected our best guess. Choose <em>Skip</em> to leave those results out.</p>
+    <div class="progress" id="mapprogress"></div>
+    <div id="mapcards"></div>
+    <button class="btn" id="tostep3">Continue →</button>
+  </div>
+
+  <!-- STEP 3: Download + next steps -->
+  <div class="card hidden" id="step3">
+    <div class="step-tag">Step 3 · Your import files</div>
+    <h2 id="summary-title">Ready to import</h2>
+    <div id="stats"></div>
+    <div class="dl">
+      <button class="btn" id="dl-prs">⬇ Download PRs file</button>
+      <button class="btn" id="dl-bw">⬇ Download Benchmarks &amp; Workouts file</button>
+    </div>
+    <div id="manual-entry"></div>
+    <div id="excluded"></div>
+    <div class="oknote">✓ Dates are written in the US format StreamFit's importer requires —
+    uploading the raw Wodify file directly can silently re-date your whole history to today.</div>
+  </div>
+
+  <!-- Next steps -->
+  <div class="card hidden" id="step4">
+    <div class="step-tag">Step 4 · Import into StreamFit</div>
+    <ol class="next">
+      <li>Sign in at <a href="https://go.streamfit.com" target="_blank" rel="noopener">go.streamfit.com</a> on a computer.</li>
+      <li>Go to your profile → <b>PRs</b> tab → <b>Import</b> → tool: <b>Wodify</b> →
+          upload <code>performance_results_prs.csv</code> → <b>Preview Results</b> → check it → <b>Confirm</b>.</li>
+      <li>Go to the <b>Benchmarks</b> tab → <b>Import</b> → tool: <b>Wodify</b> →
+          upload <code>performance_results_time_exercises.csv</code> → <b>Preview Results</b> →
+          check both the <i>Benchmarks</i> and <i>Workouts</i> tabs of the preview → <b>Confirm</b>.</li>
+      <li>In the preview, spot-check that <b>dates show your real workout dates</b> (not today's date).
+          If anything looks off, don't confirm — nothing is saved until you do.</li>
+    </ol>
+  </div>
+
+  <footer>Not affiliated with Wodify or StreamFit. Built by a gym member who didn't want to lose a decade of PRs.<br>
+  Movement catalog snapshot: Aug 2026 · <span id="taxcount"></span></footer>
+</div>
+
+<script>
+"use strict";
+/* ============ taxonomy lookups ============ */
+const MOVES = TAXONOMY.movements;
+const BENCH = TAXONOMY.benchmarks;
+const norm = s => String(s ?? "").trim().replace(/\s+/g, " ");
+const key = s => norm(s).toLowerCase().replace(/["""']/g, "");
+const MOVES_BY_KEY = new Map(MOVES.map(m => [key(m), m]));
+const BENCH_BY_KEY = new Map(BENCH.map(b => [key(b), b]));
+document.getElementById("taxcount").textContent =
+  `${MOVES.length} movements, ${BENCH.length} benchmarks`;
+
+/* ============ fuzzy suggestions ============ */
+const tokens = s => key(s).replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(Boolean);
+function suggestMovements(name, n = 5) {
+  const t = new Set(tokens(name));
+  // variant rule: bare lift names map to their Squat/Power variants
+  // ("Snatch" -> Squat/Power Snatch, "Hang Clean" -> Hang Squat/Power Clean)
+  const nk = key(name);
+  const rest = nk.replace(/^hang /, "");
+  const candidates = nk.startsWith("hang ")
+    ? [`hang squat ${rest}`, `hang power ${rest}`]
+    : [`squat ${nk}`, `power ${nk}`];
+  const variants = candidates.map(c => MOVES_BY_KEY.get(c)).filter(Boolean);
+  const scored = MOVES.map(m => {
+    const mt = tokens(m);
+    let overlap = mt.filter(x => t.has(x)).length;
+    const score = overlap / Math.max(mt.length, t.size) + (key(m).includes(key(name)) ? .4 : 0)
+                + (key(name).includes(key(m)) ? .3 : 0);
+    return [score, m];
+  }).filter(([s]) => s > 0.2).sort((a, b) => b[0] - a[0]).map(([, m]) => m);
+  return [...new Set([...variants, ...scored])].slice(0, n);
+}
+
+/* ============ CSV helpers ============ */
+const q = v => {
+  v = String(v ?? "");
+  return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+};
+const toCSV = (header, rows) =>
+  [header, ...rows].map(r => r.map(q).join(",")).join("\r\n") + "\r\n";
+const usDate = d => `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+const usDateShort = d => `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`;
+
+/* ============ state ============ */
+let ROWS = [];          // parsed source rows
+let CLIENT_ID = "";
+let MAPPINGS = {};      // original name -> chosen movement | "__SKIP__"
+let AMBIG = [];         // [{name, count, sample, suggestions}]
+
+/* ============ parsing ============ */
+const EXPECTED = ["Customer Name","Location Name","Date","Program Name","Class Name","Component Type",
+  "Component ID","Component Name","Component Description","Performance Result Type","Rep Scheme",
+  "Fully Formatted Result","From Weightlifting Total","From Variable Set","Is Rx","Is Rx Plus",
+  "Is Personal Record","Personal Record Description","Comment"];
+
+function parseDateCell(v) {
+  if (v instanceof Date && !isNaN(v)) return v;
+  if (typeof v === "number") { // Excel serial
+    const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  }
+  const d = new Date(String(v));
+  return isNaN(d) ? null : d;
+}
+
+function handleFile(file) {
+  const m = /UserId(\d+)/i.exec(file.name);
+  CLIENT_ID = m ? m[1] : "";
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: "array", cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+      const header = data[0].map(norm);
+      const missing = EXPECTED.filter(c => !header.includes(c));
+      if (missing.length > 2) throw new Error(
+        "This doesn't look like the Wodify performance-results export. Missing columns: " +
+        missing.slice(0, 4).join(", ") + "…  Make sure you're using the file Wodify support sent " +
+        "(UserIdXXXX_PerformanceResults_*.xlsx).");
+      const idx = Object.fromEntries(EXPECTED.map(c => [c, header.indexOf(c)]));
+      ROWS = data.slice(1).filter(r => r.some(c => c !== "")).map(r => {
+        const g = c => idx[c] >= 0 ? r[idx[c]] : "";
+        return {
+          date: parseDateCell(g("Date")),
+          program: norm(g("Program Name")), klass: norm(g("Class Name")),
+          type: norm(g("Component Type")), compId: norm(g("Component ID")),
+          name: norm(g("Component Name")), desc: String(g("Component Description") ?? "").trim(),
+          resultType: norm(g("Performance Result Type")), repScheme: norm(g("Rep Scheme")),
+          result: norm(g("Fully Formatted Result")),
+          fromTotal: g("From Weightlifting Total"), fromVar: g("From Variable Set"),
+          isRx: g("Is Rx"), isRxPlus: g("Is Rx Plus"), isPR: g("Is Personal Record"),
+          prDesc: norm(g("Personal Record Description")), comment: norm(g("Comment")),
+          customer: norm(g("Customer Name")), location: norm(g("Location Name")),
+        };
+      }).filter(r => r.date);
+      if (!ROWS.length) throw new Error("No result rows found in the file.");
+      buildCleanupStep();
+    } catch (err) {
+      const el = document.getElementById("parse-error");
+      el.textContent = "⚠ " + err.message;
+      el.classList.remove("hidden");
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* ============ step 2: cleanup UI ============ */
+function liftRows() { return ROWS.filter(r => ["Weightlifting", "Gymnastics"].includes(r.type)); }
+
+function buildCleanupStep() {
+  document.getElementById("parse-error").classList.add("hidden");
+  MAPPINGS = {}; AMBIG = [];
+  const seen = new Map();
+  for (const r of liftRows()) {
+    if (!r.result || /@ 0 lbs?$/.test(r.result)) continue;   // excluded later anyway
+    const exact = MOVES_BY_KEY.get(key(r.name));
+    if (exact) { MAPPINGS[r.name] = exact; continue; }
+    if (!seen.has(r.name)) seen.set(r.name, { count: 0, sample: r.result, desc: r.desc });
+    seen.get(r.name).count++;
+  }
+  for (const [name, info] of seen) {
+    AMBIG.push({ name, ...info, suggestions: suggestMovements(name) });
+  }
+  if (!AMBIG.length) { buildResults(); return; }
+
+  const cards = document.getElementById("mapcards");
+  cards.innerHTML = "";
+  AMBIG.forEach((a, i) => {
+    const card = document.createElement("div");
+    card.className = "mapcard"; card.id = `map-${i}`;
+    const meta = `${a.count} result${a.count > 1 ? "s" : ""} · e.g. ${a.sample}` +
+      (a.desc ? `\n${a.desc.slice(0, 110)}${a.desc.length > 110 ? "…" : ""}` : "");
+    card.innerHTML = `<div class="mapname">${a.name}</div><div class="mapmeta"></div>
+      <div class="chips"></div>
+      <div class="search"><input type="text" placeholder="…or search all ${MOVES.length} StreamFit movements">
+      <div class="opts hidden"></div></div>`;
+    card.querySelector(".mapmeta").textContent = meta;
+    const chipbox = card.querySelector(".chips");
+    const addChip = (label, value, cls = "") => {
+      const b = document.createElement("button");
+      b.className = "chip " + cls; b.textContent = label;
+      b.onclick = () => selectMapping(i, value, b);
+      chipbox.appendChild(b);
+      return b;
+    };
+    a.suggestions.forEach(s => addChip(s, s));
+    addChip("Skip these rows", "__SKIP__", "skip");
+    // preselect best suggestion
+    if (a.suggestions.length) selectMapping(i, a.suggestions[0], chipbox.firstChild);
+    // search box
+    const input = card.querySelector("input");
+    const opts = card.querySelector(".opts");
+    input.oninput = () => {
+      const v = key(input.value);
+      if (!v) { opts.classList.add("hidden"); return; }
+      const hits = MOVES.filter(m => key(m).includes(v)).slice(0, 40);
+      opts.innerHTML = "";
+      hits.forEach(h => {
+        const d = document.createElement("div");
+        d.textContent = h;
+        d.onclick = () => {
+          const b = addChip(h, h);
+          selectMapping(i, h, b);
+          opts.classList.add("hidden"); input.value = "";
+        };
+        opts.appendChild(d);
+      });
+      opts.classList.toggle("hidden", !hits.length);
+    };
+    cards.appendChild(card);
+  });
+  updateProgress();
+  show("step2");
+}
+
+function selectMapping(i, value, btn) {
+  const a = AMBIG[i];
+  MAPPINGS[a.name] = value;
+  const card = btn.closest(".mapcard");
+  card.querySelectorAll(".chip").forEach(c => c.classList.remove("sel"));
+  btn.classList.add("sel");
+  card.classList.add("resolved");
+  updateProgress();
+}
+function updateProgress() {
+  const done = AMBIG.filter(a => MAPPINGS[a.name]).length;
+  document.getElementById("mapprogress").textContent =
+    `${done} of ${AMBIG.length} resolved`;
+  document.getElementById("tostep3").disabled = done < AMBIG.length;
+}
+document.getElementById("tostep3").onclick = buildResults;
+
+/* ============ transform (mirrors the battle-tested python) ============ */
+function openRename(name, date) {
+  if (/^crossfit games open 14\.5 and 16\.5$/i.test(name))
+    return date.getFullYear() >= 2016 ? "OPEN 16.5" : "OPEN 14.5";
+  const m = /^crossfit games open (\d+\.\d+\w*)(?:\s*\(.*\))?$/i.exec(name);
+  if (!m) return null;
+  let v = m[1];
+  // StreamFit uses lowercase letter suffixes: OPEN 15.1a
+  v = v.replace(/([A-Z])$/, c => c.toLowerCase());
+  return `OPEN ${v}`;
+}
+function repSchemeFromResult(result) {
+  let m = /^\d+ x (\d+) @/.exec(result);
+  if (m) return `${m[1]} Rep Max`;
+  if (/^1 x \d+$/.test(result)) return "Max Reps";
+  return "";
+}
+
+let OUT = null;
+function buildResults() {
+  const clientName = "";  // not present in the support export; importer keys on the logged-in account
+  const prHeader = ["Result Date","Client Name","Client ID","Workout","Program","Component","Component Type",
+    "Rep Scheme","Result","Personal Record Details","Component Description","Component Comment",
+    "Class → Location","Class → Class","Clients → Phone Number","Clients → Email"];
+  const prRows = [], manualEntry = [], excluded = [], skipped = [];
+
+  for (const r of liftRows()) {
+    if (!r.result) { excluded.push([r, "blank result"]); continue; }
+    if (/@ 0 lbs?$/.test(r.result)) { excluded.push([r, "0-lb result"]); continue; }
+    const mapped = MAPPINGS[r.name];
+    if (mapped === "__SKIP__") { skipped.push(r); continue; }
+    if (!mapped) { excluded.push([r, "unmapped"]); continue; }
+    if (!/@/.test(r.result)) {   // rep-only results: importer can't parse — manual entry list
+      manualEntry.push({ name: mapped, date: usDate(r.date), result: r.result });
+      continue;
+    }
+    let comment = r.comment;
+    if (mapped !== r.name) comment = (comment + ` [Wodify name: ${r.name}]`).trim();
+    prRows.push([usDate(r.date), clientName, CLIENT_ID, usDateShort(r.date), r.program, mapped, r.type,
+      repSchemeFromResult(r.result), r.result, r.prDesc, r.desc, comment, r.location, r.klass, "", ""]);
+  }
+
+  // Benchmarks & workouts
+  const bwHeader = EXPECTED;
+  const bwRows = [];
+  let nBench = 0, nWork = 0;
+  const metconRows = ROWS.filter(r => ["Metcon", "Weightlifting Total"].includes(r.type));
+  for (const r of metconRows) {
+    let name = r.name;
+    let comment = r.comment, desc = r.desc;
+    const openName = openRename(name, r.date);
+    if (openName) name = openName;
+    if (key(name) !== key(r.name)) comment = (comment + ` [Wodify name: ${r.name}]`).trim();
+    let isBench = BENCH_BY_KEY.has(key(name));
+    if (BENCH_BY_KEY.has(key(name))) name = BENCH_BY_KEY.get(key(name)); // canonical casing
+    if (/^metcon$/i.test(r.name)) {
+      // generic daily WODs must not collide with any benchmark named "Metcon";
+      // unique names route them to the Workouts path, which keeps descriptions
+      name = `Metcon ${usDate(r.date)}`;
+      isBench = false;
+    }
+    if (isBench) nBench++;
+    else {
+      nWork++;
+      if (comment) desc = (desc ? desc + "\n\n" : "") + "Comment: " + comment;
+    }
+    const B = v => v === true || String(v).toLowerCase() === "true" ? "True" : "False";
+    bwRows.push([r.customer, r.location, usDate(r.date), r.program, r.klass, r.type, r.compId, name, desc,
+      r.resultType, r.repScheme, r.result, B(r.fromTotal), B(r.fromVar), B(r.isRx), B(r.isRxPlus),
+      B(r.isPR), r.prDesc, comment]);
+  }
+
+  OUT = {
+    prs: toCSV(prHeader, prRows),
+    bw: toCSV(bwHeader, bwRows),
+    counts: { prs: prRows.length, bench: nBench, work: nWork, manual: manualEntry.length,
+              excluded: excluded.length, skipped: skipped.length, total: ROWS.length },
+    manualEntry, excluded, skipped,
+  };
+  renderResults();
+}
+
+function renderResults() {
+  const c = OUT.counts;
+  document.getElementById("summary-title").textContent =
+    `Ready: ${c.prs + c.bench + c.work} of ${c.total} results prepared`;
+  const stats = [
+    [`Personal records → <code>performance_results_prs.csv</code>`, c.prs],
+    [`Benchmark results (Fran, DT, Opens…) → <code>performance_results_time_exercises.csv</code>`, c.bench],
+    [`Daily workouts (with descriptions preserved) → same file`, c.work],
+  ];
+  document.getElementById("stats").innerHTML =
+    stats.map(([l, n]) => `<div class="stat"><span>${l}</span><b>${n}</b></div>`).join("");
+
+  const me = document.getElementById("manual-entry");
+  if (OUT.manualEntry.length) {
+    me.innerHTML = `<div class="note">✍ ${OUT.manualEntry.length} rep-based gymnastics PR${OUT.manualEntry.length > 1 ? "s" : ""}
+      can't go through StreamFit's importer — add these by hand in the PRs tab afterward:
+      <ul class="manual">${OUT.manualEntry.map(m =>
+        `<li><b>${m.name}</b> — ${m.result.replace(/^1 x /, "")} reps on ${m.date}</li>`).join("")}</ul></div>`;
+  } else me.innerHTML = "";
+
+  const ex = document.getElementById("excluded");
+  const bits = [];
+  if (OUT.excluded.length) bits.push(`${OUT.excluded.length} row(s) excluded (blank or 0-lb results — no usable data)`);
+  if (OUT.skipped.length) bits.push(`${OUT.skipped.length} row(s) skipped at your request`);
+  ex.innerHTML = bits.length ? `<div class="note">ℹ ${bits.join(" · ")}</div>` : "";
+
+  show("step3"); document.getElementById("step4").classList.remove("hidden");
+}
+
+function download(name, text) {
+  const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name;
+  a.click(); URL.revokeObjectURL(a.href);
+}
+document.getElementById("dl-prs").onclick = () => download("performance_results_prs.csv", OUT.prs);
+document.getElementById("dl-bw").onclick = () => download("performance_results_time_exercises.csv", OUT.bw);
+
+/* ============ wiring ============ */
+function show(id) {
+  ["step2", "step3"].forEach(s => document.getElementById(s).classList.add("hidden"));
+  document.getElementById(id).classList.remove("hidden");
+}
+const dz = document.getElementById("dropzone");
+const fi = document.getElementById("fileinput");
+dz.onclick = () => fi.click();
+fi.onchange = () => fi.files[0] && handleFile(fi.files[0]);
+["dragover", "dragenter"].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add("drag"); }));
+["dragleave", "drop"].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove("drag"); }));
+dz.addEventListener("drop", e => e.dataTransfer.files[0] && handleFile(e.dataTransfer.files[0]));
+
+/* test hooks */
+window.__test = { handleFile, get OUT() { return OUT; }, get AMBIG() { return AMBIG; },
+  get MAPPINGS() { return MAPPINGS; }, setMapping: (n, v) => { MAPPINGS[n] = v; }, buildResults };
+</script>
+</body>
+</html>
