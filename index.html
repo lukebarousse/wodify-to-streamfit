@@ -40,10 +40,10 @@
   .mapcard { border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 12px;
              position: relative; }
   .mapcard.resolved { border-color: var(--accent); }
-  .mapcard .xbtn { position: absolute; top: 8px; right: 8px; border: none; background: none;
-                   color: var(--muted); font-size: 1.1rem; line-height: 1; cursor: pointer;
-                   padding: 6px 8px; border-radius: 6px; }
-  .mapcard .xbtn:hover { color: #dc2626; background: rgba(220,38,38,.12); }
+  .mapcard .skipbtn { position: absolute; top: 10px; right: 10px; border: 1.5px solid var(--border);
+                      background: none; color: var(--muted); font-size: .78rem; font-weight: 600;
+                      cursor: pointer; padding: 4px 10px; border-radius: 8px; }
+  .mapcard .skipbtn:hover { color: #dc2626; border-color: #dc2626; background: rgba(220,38,38,.08); }
   .mapcard.skipped { opacity: .6; padding: 10px 14px; border-style: dashed; }
   .mapcard.skipped .mapbody { display: none; }
   .mapcard .skiprow { display: none; font-size: .85rem; color: var(--muted); }
@@ -89,6 +89,26 @@
   .progress { font-size: .85rem; color: var(--muted); margin-bottom: 10px; }
   footer { text-align: center; color: var(--muted); font-size: .8rem; margin-top: 40px; }
   ul.manual { margin: 8px 0 0; padding-left: 20px; font-size: .9rem; }
+  .revsec { margin-bottom: 20px; }
+  .revsec h3 { font-size: .98rem; margin: 0 0 6px; }
+  .revsec .revcount { color: var(--muted); font-weight: 400; }
+  .revwrap { border: 1px solid var(--border); border-radius: 8px; max-height: 320px; overflow: auto; }
+  table.rev { width: 100%; border-collapse: collapse; font-size: .86rem; }
+  table.rev th { position: sticky; top: 0; background: var(--card); text-align: left;
+                 padding: 7px 10px; border-bottom: 1px solid var(--border); font-size: .78rem;
+                 text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  table.rev td { padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.rev tr:last-child td { border-bottom: none; }
+  table.rev .imp { color: var(--muted); font-size: .8rem; }
+  table.rev .renote { color: var(--accent); font-size: .78rem; }
+  table.rev .rmv { border: none; background: none; color: var(--muted); cursor: pointer;
+                   font-size: .95rem; padding: 2px 6px; border-radius: 5px; }
+  table.rev .rmv:hover { color: #dc2626; background: rgba(220,38,38,.1); }
+  table.rev tr.off td { opacity: .45; text-decoration: line-through; }
+  table.rev tr.off .rmv { text-decoration: none; }
+  .revfilter { width: 100%; padding: 7px 10px; margin-bottom: 6px; border-radius: 8px;
+               border: 1px solid var(--border); background: var(--bg); color: var(--text);
+               font-size: .88rem; }
 </style>
 </head>
 <body>
@@ -114,16 +134,30 @@
   <div class="card hidden" id="step2">
     <div class="step-tag">Step 2 · Match your movements</div>
     <h2>A few movement names need your call</h2>
-    <p class="sub" style="margin-bottom:14px">StreamFit needs exact movement names. Pick the best match for each —
-    we've pre-selected our best guess. Choose <em>Skip</em> to leave those results out.</p>
+    <p class="sub" style="margin-bottom:10px">StreamFit needs exact movement names. Pick the best match for each —
+    we've pre-selected our best guess.</p>
+    <div class="oknote" style="margin:0 0 14px">You're only choosing the <b>movement name</b> here.
+    The reps and weight of every individual result import automatically —
+    <code>1 x 3 @ 315 lbs</code> becomes a 3-rep max at 315 lbs, <code>1 x 1 @ 325 lbs</code> a
+    1-rep max at 325. Nothing to type.</div>
     <div class="progress" id="mapprogress"></div>
     <div id="mapcards"></div>
     <button class="btn" id="tostep3">Continue →</button>
   </div>
 
-  <!-- STEP 3: Download + next steps -->
+  <!-- STEP 3: Review the cleaned data -->
+  <div class="card hidden" id="stepReview">
+    <div class="step-tag">Step 3 · Check your data</div>
+    <h2>Review what will be imported</h2>
+    <p class="sub" style="margin-bottom:14px">This is your history exactly as it will go into StreamFit.
+    Click ✕ on any row you'd rather leave out — everything else is ready.</p>
+    <div id="revsections"></div>
+    <button class="btn" id="toDownloads">Looks good — get my files →</button>
+  </div>
+
+  <!-- STEP 4: Download + next steps -->
   <div class="card hidden" id="step3">
-    <div class="step-tag">Step 3 · Your import files</div>
+    <div class="step-tag">Step 4 · Your import files</div>
     <h2 id="summary-title">Ready to import</h2>
     <div id="stats"></div>
     <div class="dl">
@@ -133,14 +167,12 @@
     <div id="manual-entry"></div>
     <div id="excluded"></div>
     <div class="oknote">✓ Dates are written in the US format StreamFit's importer requires —
-    uploading the raw Wodify file directly can silently re-date your whole history to today.<br>
-    ✓ Rep counts are read from each result automatically: <code>1 x 3 @ 315 lbs</code> imports
-    as a 3-rep max, <code>1 x 1 @ 325 lbs</code> as a 1-rep max — nothing to enter by hand.</div>
+    uploading the raw Wodify file directly can silently re-date your whole history to today.</div>
   </div>
 
   <!-- Next steps -->
   <div class="card hidden" id="step4">
-    <div class="step-tag">Step 4 · Import into StreamFit</div>
+    <div class="step-tag">Step 5 · Import into StreamFit</div>
     <ol class="next">
       <li>Sign in at <a href="https://go.streamfit.com" target="_blank" rel="noopener">go.streamfit.com</a> on a computer.</li>
       <li>Go to your profile → <b>PRs</b> tab → <b>Import</b> → tool: <b>Wodify</b> →
@@ -300,7 +332,7 @@ function buildCleanupStep() {
   for (const [name, info] of seen) {
     AMBIG.push({ name, ...info, suggestions: suggestMovements(name) });
   }
-  if (!AMBIG.length && !AUTO.length) { buildResults(); return; }
+  if (!AMBIG.length && !AUTO.length) { computeOutputs(); renderReview(); return; }
   buildCleanupRender();
   show("step2");
 }
@@ -354,7 +386,7 @@ function makeCard(a, i) {
   const meta = `${a.count} result${a.count > 1 ? "s" : ""} · e.g. ${a.sample}` +
     (why ? `  →  ${why}` : "") +
     (a.desc ? `\n${a.desc.slice(0, 110)}${a.desc.length > 110 ? "…" : ""}` : "");
-  card.innerHTML = `<button class="xbtn" title="Skip these rows — leave them out of the import">✕</button>
+  card.innerHTML = `<button class="skipbtn" title="Leave these results out of the import">Skip Entry ✕</button>
     <div class="mapname"></div>
     <div class="skiprow">Skipped — these results won't be imported. <a>Undo</a></div>
     <div class="mapbody"><div class="mapmeta"></div>
@@ -379,8 +411,8 @@ function makeCard(a, i) {
                 addChip(MAPPINGS[a.name], MAPPINGS[a.name]);
     selectMapping(i, MAPPINGS[a.name], hit);
   }
-  // skip ✕ / undo
-  card.querySelector(".xbtn").onclick = () => {
+  // skip / undo
+  card.querySelector(".skipbtn").onclick = () => {
     MAPPINGS[a.name] = "__SKIP__";
     card.classList.add("skipped"); card.classList.remove("resolved");
     updateProgress();
@@ -432,7 +464,8 @@ function updateProgress() {
     `${done} of ${AMBIG.length} resolved` + (skipped ? ` (${skipped} skipped)` : "");
   document.getElementById("tostep3").disabled = done < AMBIG.length;
 }
-document.getElementById("tostep3").onclick = buildResults;
+document.getElementById("tostep3").onclick = () => { computeOutputs(); renderReview(); };
+document.getElementById("toDownloads").onclick = finishReview;
 
 /* ============ transform (mirrors the battle-tested python) ============ */
 function openRename(name, date) {
@@ -453,33 +486,34 @@ function repSchemeFromResult(result) {
 }
 
 let OUT = null;
-function buildResults() {
-  const clientName = "";  // not present in the support export; importer keys on the logged-in account
-  const prHeader = ["Result Date","Client Name","Client ID","Workout","Program","Component","Component Type",
-    "Rep Scheme","Result","Personal Record Details","Component Description","Component Comment",
-    "Class → Location","Class → Class","Clients → Phone Number","Clients → Email"];
-  const prRows = [], manualEntry = [], excluded = [], skipped = [];
+let PRE = [], BWE = [], MANUAL = [], EXCLUDED = [], SKIPPED = [];
 
+const PR_HEADER = ["Result Date","Client Name","Client ID","Workout","Program","Component","Component Type",
+  "Rep Scheme","Result","Personal Record Details","Component Description","Component Comment",
+  "Class → Location","Class → Class","Clients → Phone Number","Clients → Email"];
+
+function computeOutputs() {
+  PRE = []; BWE = []; MANUAL = []; EXCLUDED = []; SKIPPED = [];
   for (const r of liftRows()) {
-    if (!r.result) { excluded.push([r, "blank result"]); continue; }
-    if (/@ 0 lbs?$/.test(r.result)) { excluded.push([r, "0-lb result"]); continue; }
+    if (!r.result) { EXCLUDED.push([r, "blank result"]); continue; }
+    if (/@ 0 lbs?$/.test(r.result)) { EXCLUDED.push([r, "0-lb result"]); continue; }
     const mapped = MAPPINGS[r.name];
-    if (mapped === "__SKIP__") { skipped.push(r); continue; }
-    if (!mapped) { excluded.push([r, "unmapped"]); continue; }
+    if (mapped === "__SKIP__") { SKIPPED.push(r); continue; }
+    if (!mapped) { EXCLUDED.push([r, "unmapped"]); continue; }
     if (!/@/.test(r.result)) {   // rep-only results: importer can't parse — manual entry list
-      manualEntry.push({ name: mapped, date: usDate(r.date), result: r.result });
+      MANUAL.push({ name: mapped, date: usDate(r.date), result: r.result });
       continue;
     }
     let comment = r.comment;
     if (mapped !== r.name) comment = (comment + ` [Wodify name: ${r.name}]`).trim();
-    prRows.push([usDate(r.date), clientName, CLIENT_ID, usDateShort(r.date), r.program, mapped, r.type,
-      repSchemeFromResult(r.result), r.result, r.prDesc, r.desc, comment, r.location, r.klass, "", ""]);
+    PRE.push({
+      on: true, date: r.date, movement: mapped, result: r.result,
+      explain: explainResult(r.result), orig: mapped !== r.name ? r.name : "",
+      csvRow: [usDate(r.date), "", CLIENT_ID, usDateShort(r.date), r.program, mapped, r.type,
+        repSchemeFromResult(r.result), r.result, r.prDesc, r.desc, comment, r.location, r.klass, "", ""],
+    });
   }
 
-  // Benchmarks & workouts
-  const bwHeader = EXPECTED;
-  const bwRows = [];
-  let nBench = 0, nWork = 0;
   const metconRows = ROWS.filter(r => ["Metcon", "Weightlifting Total"].includes(r.type));
   for (const r of metconRows) {
     let name = r.name;
@@ -488,30 +522,107 @@ function buildResults() {
     if (openName) name = openName;
     if (key(name) !== key(r.name)) comment = (comment + ` [Wodify name: ${r.name}]`).trim();
     let isBench = BENCH_BY_KEY.has(key(name));
-    if (BENCH_BY_KEY.has(key(name))) name = BENCH_BY_KEY.get(key(name)); // canonical casing
+    if (isBench) name = BENCH_BY_KEY.get(key(name)); // canonical casing
     if (/^metcon$/i.test(r.name)) {
       // generic daily WODs must not collide with any benchmark named "Metcon";
       // unique names route them to the Workouts path, which keeps descriptions
       name = `Metcon ${usDate(r.date)}`;
       isBench = false;
     }
-    if (isBench) nBench++;
-    else {
-      nWork++;
-      if (comment) desc = (desc ? desc + "\n\n" : "") + "Comment: " + comment;
-    }
+    if (!isBench && comment) desc = (desc ? desc + "\n\n" : "") + "Comment: " + comment;
     const B = v => v === true || String(v).toLowerCase() === "true" ? "True" : "False";
-    bwRows.push([r.customer, r.location, usDate(r.date), r.program, r.klass, r.type, r.compId, name, desc,
-      r.resultType, r.repScheme, r.result, B(r.fromTotal), B(r.fromVar), B(r.isRx), B(r.isRxPlus),
-      B(r.isPR), r.prDesc, comment]);
+    BWE.push({
+      on: true, date: r.date, name, result: r.result, isBench,
+      orig: key(name) !== key(r.name) && !/^metcon /i.test(name) ? r.name : "",
+      csvRow: [r.customer, r.location, usDate(r.date), r.program, r.klass, r.type, r.compId, name, desc,
+        r.resultType, r.repScheme, r.result, B(r.fromTotal), B(r.fromVar), B(r.isRx), B(r.isRxPlus),
+        B(r.isPR), r.prDesc, comment],
+    });
   }
+}
 
+/* ---- step 3: review tables ---- */
+function revTable(entries, cols, filterable) {
+  const sec = document.createElement("div");
+  const wrap = document.createElement("div"); wrap.className = "revwrap";
+  const table = document.createElement("table"); table.className = "rev";
+  table.innerHTML = `<thead><tr>${cols.map(c => `<th>${c}</th>`).join("")}<th></th></tr></thead>`;
+  const tbody = document.createElement("tbody");
+  const render = (filter = "") => {
+    tbody.innerHTML = "";
+    entries.forEach(e => {
+      if (filter && !`${e.name || e.movement} ${e.result}`.toLowerCase().includes(filter)) return;
+      const tr = document.createElement("tr");
+      if (!e.on) tr.className = "off";
+      tr.innerHTML = e.cells.map(c => `<td>${c}</td>`).join("") +
+        `<td style="text-align:right"><button class="rmv" title="${e.on ? "Remove this row" : "Restore this row"}">${e.on ? "✕" : "↩"}</button></td>`;
+      tr.querySelector(".rmv").onclick = () => { e.on = !e.on; render(filter); };
+      tbody.appendChild(tr);
+    });
+  };
+  if (filterable) {
+    const f = document.createElement("input");
+    f.className = "revfilter"; f.placeholder = "Filter…";
+    f.oninput = () => render(f.value.toLowerCase());
+    sec.appendChild(f);
+  }
+  render();
+  table.appendChild(tbody); wrap.appendChild(table); sec.appendChild(wrap);
+  return sec;
+}
+const esc = s => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+function renderReview() {
+  const host = document.getElementById("revsections");
+  host.innerHTML = "";
+  const addSec = (title, node) => {
+    const d = document.createElement("div"); d.className = "revsec";
+    d.innerHTML = `<h3>${title}</h3>`;
+    if (node) d.appendChild(node);
+    host.appendChild(d);
+  };
+
+  const prs = PRE;
+  prs.forEach(e => e.cells = [usDate(e.date), `<b>${esc(e.movement)}</b>` +
+    (e.orig ? `<div class="renote">was: ${esc(e.orig)}</div>` : ""),
+    `${esc(e.result)}<div class="imp">${esc(e.explain)}</div>`]);
+  addSec(`Personal records <span class="revcount">· ${prs.length} rows → performance_results_prs.csv</span>`,
+    revTable(prs, ["Date", "Movement", "Result"], prs.length > 15));
+
+  const bench = BWE.filter(e => e.isBench);
+  bench.forEach(e => e.cells = [usDate(e.date), `<b>${esc(e.name)}</b>` +
+    (e.orig ? `<div class="renote">was: ${esc(e.orig)}</div>` : ""), esc(e.result)]);
+  addSec(`Benchmarks <span class="revcount">· ${bench.length} rows → performance_results_time_exercises.csv</span>`,
+    revTable(bench, ["Date", "Benchmark", "Result"], bench.length > 15));
+
+  const works = BWE.filter(e => !e.isBench);
+  works.forEach(e => e.cells = [usDate(e.date), esc(e.name), esc(e.result)]);
+  addSec(`Daily workouts <span class="revcount">· ${works.length} rows → same file (descriptions preserved)</span>`,
+    revTable(works, ["Date", "Workout", "Result"], works.length > 15));
+
+  if (MANUAL.length) {
+    const d = document.createElement("div"); d.className = "note";
+    d.innerHTML = `✍ ${MANUAL.length} rep-based PR${MANUAL.length > 1 ? "s" : ""} can't go through
+      StreamFit's importer (it only parses weighted results) — you'll add these by hand afterward;
+      they'll be listed with your downloads.`;
+    host.appendChild(d);
+  }
+  show("stepReview");
+}
+
+function finishReview() {
   OUT = {
-    prs: toCSV(prHeader, prRows),
-    bw: toCSV(bwHeader, bwRows),
-    counts: { prs: prRows.length, bench: nBench, work: nWork, manual: manualEntry.length,
-              excluded: excluded.length, skipped: skipped.length, total: ROWS.length },
-    manualEntry, excluded, skipped,
+    prs: toCSV(PR_HEADER, PRE.filter(e => e.on).map(e => e.csvRow)),
+    bw: toCSV(EXPECTED, BWE.filter(e => e.on).map(e => e.csvRow)),
+    counts: {
+      prs: PRE.filter(e => e.on).length,
+      bench: BWE.filter(e => e.on && e.isBench).length,
+      work: BWE.filter(e => e.on && !e.isBench).length,
+      manual: MANUAL.length, excluded: EXCLUDED.length,
+      skipped: SKIPPED.length + PRE.filter(e => !e.on).length + BWE.filter(e => !e.on).length,
+      total: ROWS.length,
+    },
+    manualEntry: MANUAL, excluded: EXCLUDED, skipped: SKIPPED,
   };
   renderResults();
 }
@@ -540,8 +651,8 @@ function renderResults() {
 
   const ex = document.getElementById("excluded");
   const bits = [];
-  if (OUT.excluded.length) bits.push(`${OUT.excluded.length} row(s) excluded (blank or 0-lb results — no usable data)`);
-  if (OUT.skipped.length) bits.push(`${OUT.skipped.length} row(s) skipped at your request`);
+  if (OUT.counts.excluded) bits.push(`${OUT.counts.excluded} row(s) excluded (blank or 0-lb results — no usable data)`);
+  if (OUT.counts.skipped) bits.push(`${OUT.counts.skipped} row(s) left out at your request`);
   ex.innerHTML = bits.length ? `<div class="note">ℹ ${bits.join(" · ")}</div>` : "";
 
   show("step3"); document.getElementById("step4").classList.remove("hidden");
@@ -558,7 +669,7 @@ document.getElementById("dl-bw").onclick = () => download("performance_results_t
 
 /* ============ wiring ============ */
 function show(id) {
-  ["step2", "step3"].forEach(s => document.getElementById(s).classList.add("hidden"));
+  ["step2", "stepReview", "step3"].forEach(s => document.getElementById(s).classList.add("hidden"));
   document.getElementById(id).classList.remove("hidden");
 }
 const dz = document.getElementById("dropzone");
@@ -571,7 +682,9 @@ dz.addEventListener("drop", e => e.dataTransfer.files[0] && handleFile(e.dataTra
 
 /* test hooks */
 window.__test = { handleFile, get OUT() { return OUT; }, get AMBIG() { return AMBIG; },
-  get MAPPINGS() { return MAPPINGS; }, setMapping: (n, v) => { MAPPINGS[n] = v; }, buildResults };
+  get MAPPINGS() { return MAPPINGS; }, setMapping: (n, v) => { MAPPINGS[n] = v; },
+  get PRE() { return PRE; }, get BWE() { return BWE; },
+  computeOutputs, renderReview, finishReview };
 </script>
 </body>
 </html>
