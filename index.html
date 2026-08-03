@@ -192,6 +192,7 @@
     <div id="excluded"></div>
     <div class="oknote">✓ Dates are written in the US format StreamFit's importer requires —
     uploading the raw Wodify file directly can silently re-date your whole history to today.</div>
+    <button class="btn" style="margin-top:16px" onclick="goStep(5)">Continue — how to import →</button>
   </div>
 
   <!-- Next steps -->
@@ -222,8 +223,11 @@ const norm = s => String(s ?? "").trim().replace(/\s+/g, " ");
 const key = s => norm(s).toLowerCase().replace(/["""']/g, "");
 const MOVES_BY_KEY = new Map(MOVES.map(m => [key(m), m]));
 const BENCH_BY_KEY = new Map(BENCH.map(b => [key(b), b]));
-// aggressive key for near-matches: punctuation, hyphens, plural "s", spacing
+// aggressive key for near-matches: punctuation, hyphens, plural "s", spacing,
+// and connector words ("Power Clean + Jerk" ≡ "Power Clean and Jerk")
+const STOPWORDS = new Set(["and", "to", "the"]);
 const fuzzyKey = s => key(s).replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(Boolean)
+  .filter(t => !STOPWORDS.has(t))
   .map(t => t.length > 2 && t.endsWith("s") ? t.slice(0, -1) : t).join(" ");
 const MOVES_BY_FUZZY = new Map();
 for (const m of MOVES) {
@@ -585,6 +589,13 @@ function computeOutputs() {
     });
   }
 
+  // rows with no component type carry no importable score (empty export rows,
+  // or check-off components like "Skill Work — Complete") — exclude, visibly
+  for (const r of ROWS) {
+    if (["Weightlifting", "Gymnastics", "Metcon", "Weightlifting Total"].includes(r.type)) continue;
+    EXCLUDED.push([r, (!r.name && !r.result) ? "empty row" : "checkmark-only"]);
+  }
+
   const metconRows = ROWS.filter(r => ["Metcon", "Weightlifting Total"].includes(r.type));
   for (const r of metconRows) {
     let name = r.name;
@@ -719,20 +730,29 @@ function renderResults() {
       After importing your files, add these ${OUT.manualEntry.length} by hand:
       profile → <b>PRs</b> tab → search the movement → add the score with its date.
       <ul class="manual">${OUT.manualEntry.map(m => {
-        const n = m.result.replace(/^1 x /, "");
-        return `<li><b>${esc(m.name)}</b> — ${n} rep${n === "1" ? "" : "s"} on ${m.date}</li>`;
+        const s = /^(\d+) x (\d+)$/.exec(m.result);
+        const disp = !s ? esc(m.result)
+          : s[1] === "1" ? `${s[2]} rep${s[2] === "1" ? "" : "s"}`
+          : `${s[1]} sets of ${s[2]} rep${s[2] === "1" ? "" : "s"}`;
+        return `<li><b>${esc(m.name)}</b> — ${disp} on ${m.date}</li>`;
       }).join("")}</ul></div>`;
   } else me.innerHTML = "";
 
   const ex = document.getElementById("excluded");
-  const blank = OUT.excluded.filter(([, why]) => why === "blank result").length;
-  const zero = OUT.excluded.filter(([, why]) => why === "0-lb result").length;
+  const nWhy = why => OUT.excluded.filter(([, w]) => w === why).length;
+  const blank = nWhy("blank result"), zero = nWhy("0-lb result");
+  const empty = nWhy("empty row"), check = nWhy("checkmark-only");
+  const checkNames = [...new Set(OUT.excluded.filter(([, w]) => w === "checkmark-only")
+    .map(([r]) => r.name).filter(Boolean))].slice(0, 4);
   const skippedByName = {};
   OUT.skipped.forEach(r => { skippedByName[r.name] = (skippedByName[r.name] || 0) + 1; });
   const reviewRemoved = OUT.counts.skipped - OUT.skipped.length;
   const bits = [];
   if (blank) bits.push(`<li>${blank} row${blank > 1 ? "s" : ""} had <b>no recorded result</b> in Wodify — nothing to import</li>`);
   if (zero) bits.push(`<li>${zero} row${zero > 1 ? "s" : ""} ${zero > 1 ? "were" : "was"} recorded at <b>0 lbs</b> — no usable data</li>`);
+  if (check) bits.push(`<li>${check} <b>check-off component${check > 1 ? "s" : ""}</b> (marked "Complete" with no score
+    — e.g. ${checkNames.map(esc).join(", ")})</li>`);
+  if (empty) bits.push(`<li>${empty} empty row${empty > 1 ? "s" : ""} in the export</li>`);
   Object.entries(skippedByName).forEach(([n, c]) =>
     bits.push(`<li>"<b>${esc(n)}</b>" — ${c} row${c > 1 ? "s" : ""} (you chose <i>Skip Entry</i> in the Match step)</li>`));
   if (reviewRemoved) bits.push(`<li>${reviewRemoved} row${reviewRemoved > 1 ? "s" : ""} you removed in the Review step</li>`);
