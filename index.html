@@ -37,9 +37,26 @@
   #dropzone span { color: var(--muted); font-size: .9rem; }
   .privacy { font-size: .82rem; color: var(--muted); text-align: center; margin-top: 10px; }
   .hidden { display: none; }
-  .mapcard { border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+  .mapcard { border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 12px;
+             position: relative; }
   .mapcard.resolved { border-color: var(--accent); }
-  .mapname { font-weight: 700; }
+  .mapcard .xbtn { position: absolute; top: 8px; right: 8px; border: none; background: none;
+                   color: var(--muted); font-size: 1.1rem; line-height: 1; cursor: pointer;
+                   padding: 6px 8px; border-radius: 6px; }
+  .mapcard .xbtn:hover { color: #dc2626; background: rgba(220,38,38,.12); }
+  .mapcard.skipped { opacity: .6; padding: 10px 14px; border-style: dashed; }
+  .mapcard.skipped .mapbody { display: none; }
+  .mapcard .skiprow { display: none; font-size: .85rem; color: var(--muted); }
+  .mapcard.skipped .skiprow { display: block; }
+  .mapcard .skiprow a { color: var(--accent); cursor: pointer; }
+  .autobox { border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 10px;
+             padding: 12px 14px; margin-bottom: 14px; }
+  .autobox .title { font-weight: 700; font-size: .92rem; margin-bottom: 6px; }
+  .autorow { display: flex; align-items: center; gap: 8px; font-size: .88rem; padding: 3px 0; }
+  .autorow .arrow { color: var(--muted); }
+  .autorow a { margin-left: auto; font-size: .8rem; color: var(--muted); cursor: pointer;
+               text-decoration: underline; }
+  .mapname { font-weight: 700; padding-right: 28px; }
   .mapmeta { font-size: .82rem; color: var(--muted); margin: 2px 0 10px; white-space: pre-wrap; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip { border: 1.5px solid var(--border); background: none; color: var(--text); border-radius: 999px;
@@ -116,7 +133,9 @@
     <div id="manual-entry"></div>
     <div id="excluded"></div>
     <div class="oknote">✓ Dates are written in the US format StreamFit's importer requires —
-    uploading the raw Wodify file directly can silently re-date your whole history to today.</div>
+    uploading the raw Wodify file directly can silently re-date your whole history to today.<br>
+    ✓ Rep counts are read from each result automatically: <code>1 x 3 @ 315 lbs</code> imports
+    as a 3-rep max, <code>1 x 1 @ 325 lbs</code> as a 1-rep max — nothing to enter by hand.</div>
   </div>
 
   <!-- Next steps -->
@@ -147,6 +166,15 @@ const norm = s => String(s ?? "").trim().replace(/\s+/g, " ");
 const key = s => norm(s).toLowerCase().replace(/["""']/g, "");
 const MOVES_BY_KEY = new Map(MOVES.map(m => [key(m), m]));
 const BENCH_BY_KEY = new Map(BENCH.map(b => [key(b), b]));
+// aggressive key for near-matches: punctuation, hyphens, plural "s", spacing
+const fuzzyKey = s => key(s).replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(Boolean)
+  .map(t => t.length > 2 && t.endsWith("s") ? t.slice(0, -1) : t).join(" ");
+const MOVES_BY_FUZZY = new Map();
+for (const m of MOVES) {
+  const fk = fuzzyKey(m);
+  if (!MOVES_BY_FUZZY.has(fk)) MOVES_BY_FUZZY.set(fk, []);
+  MOVES_BY_FUZZY.get(fk).push(m);
+}
 document.getElementById("taxcount").textContent =
   `${MOVES.length} movements, ${BENCH.length} benchmarks`;
 
@@ -187,6 +215,7 @@ let ROWS = [];          // parsed source rows
 let CLIENT_ID = "";
 let MAPPINGS = {};      // original name -> chosen movement | "__SKIP__"
 let AMBIG = [];         // [{name, count, sample, suggestions}]
+let AUTO = [];          // near-matches acknowledged automatically [{from, to}]
 
 /* ============ parsing ============ */
 const EXPECTED = ["Customer Name","Location Name","Date","Program Name","Class Name","Component Type",
@@ -251,74 +280,146 @@ function liftRows() { return ROWS.filter(r => ["Weightlifting", "Gymnastics"].in
 
 function buildCleanupStep() {
   document.getElementById("parse-error").classList.add("hidden");
-  MAPPINGS = {}; AMBIG = [];
+  MAPPINGS = {}; AMBIG = []; AUTO = [];
   const seen = new Map();
   for (const r of liftRows()) {
     if (!r.result || /@ 0 lbs?$/.test(r.result)) continue;   // excluded later anyway
+    if (MAPPINGS[r.name]) continue;
     const exact = MOVES_BY_KEY.get(key(r.name));
     if (exact) { MAPPINGS[r.name] = exact; continue; }
+    // near-match: punctuation/plural/case-only difference with exactly one candidate
+    const fuzzy = MOVES_BY_FUZZY.get(fuzzyKey(r.name));
+    if (fuzzy && fuzzy.length === 1) {
+      MAPPINGS[r.name] = fuzzy[0];
+      if (!AUTO.some(x => x.from === r.name)) AUTO.push({ from: r.name, to: fuzzy[0] });
+      continue;
+    }
     if (!seen.has(r.name)) seen.set(r.name, { count: 0, sample: r.result, desc: r.desc });
     seen.get(r.name).count++;
   }
   for (const [name, info] of seen) {
     AMBIG.push({ name, ...info, suggestions: suggestMovements(name) });
   }
-  if (!AMBIG.length) { buildResults(); return; }
+  if (!AMBIG.length && !AUTO.length) { buildResults(); return; }
+  buildCleanupRender();
+  show("step2");
+}
 
+// user disagreed with an auto-match: turn it into a normal decision card
+function demoteToCard(name) {
+  delete MAPPINGS[name];
+  AUTO = AUTO.filter(x => x.from !== name);
+  const r = liftRows().find(x => x.name === name);
+  AMBIG.push({ name, count: liftRows().filter(x => x.name === name).length,
+               sample: r?.result || "", desc: r?.desc || "", suggestions: suggestMovements(name) });
+  buildCleanupRender();
+}
+
+function buildCleanupRender() {
   const cards = document.getElementById("mapcards");
   cards.innerHTML = "";
-  AMBIG.forEach((a, i) => {
-    const card = document.createElement("div");
-    card.className = "mapcard"; card.id = `map-${i}`;
-    const meta = `${a.count} result${a.count > 1 ? "s" : ""} · e.g. ${a.sample}` +
-      (a.desc ? `\n${a.desc.slice(0, 110)}${a.desc.length > 110 ? "…" : ""}` : "");
-    card.innerHTML = `<div class="mapname">${a.name}</div><div class="mapmeta"></div>
-      <div class="chips"></div>
-      <div class="search"><input type="text" placeholder="…or search all ${MOVES.length} StreamFit movements">
-      <div class="opts hidden"></div></div>`;
-    card.querySelector(".mapmeta").textContent = meta;
-    const chipbox = card.querySelector(".chips");
-    const addChip = (label, value, cls = "") => {
-      const b = document.createElement("button");
-      b.className = "chip " + cls; b.textContent = label;
-      b.onclick = () => selectMapping(i, value, b);
-      chipbox.appendChild(b);
-      return b;
-    };
-    a.suggestions.forEach(s => addChip(s, s));
-    addChip("Skip these rows", "__SKIP__", "skip");
-    // preselect best suggestion
-    if (a.suggestions.length) selectMapping(i, a.suggestions[0], chipbox.firstChild);
-    // search box
-    const input = card.querySelector("input");
-    const opts = card.querySelector(".opts");
-    input.oninput = () => {
-      const v = key(input.value);
-      if (!v) { opts.classList.add("hidden"); return; }
-      const hits = MOVES.filter(m => key(m).includes(v)).slice(0, 40);
-      opts.innerHTML = "";
-      hits.forEach(h => {
-        const d = document.createElement("div");
-        d.textContent = h;
-        d.onclick = () => {
-          const b = addChip(h, h);
-          selectMapping(i, h, b);
-          opts.classList.add("hidden"); input.value = "";
-        };
-        opts.appendChild(d);
-      });
-      opts.classList.toggle("hidden", !hits.length);
-    };
-    cards.appendChild(card);
-  });
+  // auto-acknowledged near-matches: compact list, no decision needed
+  if (AUTO.length) {
+    const box = document.createElement("div");
+    box.className = "autobox";
+    box.innerHTML = `<div class="title">✓ ${AUTO.length} name${AUTO.length > 1 ? "s" : ""} matched automatically
+      (spelling only — nothing to do)</div>`;
+    AUTO.forEach(x => {
+      const row = document.createElement("div");
+      row.className = "autorow";
+      row.innerHTML = `<span></span><span class="arrow">→</span><b></b><a>change</a>`;
+      row.children[0].textContent = x.from;
+      row.children[2].textContent = x.to;
+      row.querySelector("a").onclick = () => demoteToCard(x.from);
+      box.appendChild(row);
+    });
+    cards.appendChild(box);
+  }
+  AMBIG.forEach((a, i) => cards.appendChild(makeCard(a, i)));
   updateProgress();
-  show("step2");
+}
+
+// "1 x 3 @ 315 lbs" -> "imports as 3-rep max · 315 lbs"
+function explainResult(result) {
+  let m = /^(\d+) x (\d+) @ (.+)$/.exec(result);
+  if (m) return `imports as ${m[2]}-rep max · ${m[3]}`;
+  if (/^1 x \d+$/.test(result)) return "rep-based — will be listed for manual entry";
+  return "";
+}
+
+function makeCard(a, i) {
+  const card = document.createElement("div");
+  card.className = "mapcard"; card.id = `map-${i}`;
+  const why = explainResult(a.sample);
+  const meta = `${a.count} result${a.count > 1 ? "s" : ""} · e.g. ${a.sample}` +
+    (why ? `  →  ${why}` : "") +
+    (a.desc ? `\n${a.desc.slice(0, 110)}${a.desc.length > 110 ? "…" : ""}` : "");
+  card.innerHTML = `<button class="xbtn" title="Skip these rows — leave them out of the import">✕</button>
+    <div class="mapname"></div>
+    <div class="skiprow">Skipped — these results won't be imported. <a>Undo</a></div>
+    <div class="mapbody"><div class="mapmeta"></div>
+    <div class="chips"></div>
+    <div class="search"><input type="text" placeholder="…or search all ${MOVES.length} StreamFit movements">
+    <div class="opts hidden"></div></div></div>`;
+  card.querySelector(".mapname").textContent = a.name;
+  card.querySelector(".mapmeta").textContent = meta;
+  const chipbox = card.querySelector(".chips");
+  const addChip = (label, value) => {
+    const b = document.createElement("button");
+    b.className = "chip"; b.textContent = label;
+    b.onclick = () => selectMapping(i, value, b);
+    chipbox.appendChild(b);
+    return b;
+  };
+  a.suggestions.forEach(s => addChip(s, s));
+  if (a.suggestions.length && !MAPPINGS[a.name])
+    selectMapping(i, a.suggestions[0], chipbox.firstChild);
+  else if (MAPPINGS[a.name] && MAPPINGS[a.name] !== "__SKIP__") {
+    const hit = [...chipbox.children].find(c => c.textContent === MAPPINGS[a.name]) ||
+                addChip(MAPPINGS[a.name], MAPPINGS[a.name]);
+    selectMapping(i, MAPPINGS[a.name], hit);
+  }
+  // skip ✕ / undo
+  card.querySelector(".xbtn").onclick = () => {
+    MAPPINGS[a.name] = "__SKIP__";
+    card.classList.add("skipped"); card.classList.remove("resolved");
+    updateProgress();
+  };
+  card.querySelector(".skiprow a").onclick = () => {
+    delete MAPPINGS[a.name];
+    card.classList.remove("skipped");
+    const sel = card.querySelector(".chip.sel");
+    if (sel) MAPPINGS[a.name] = sel.textContent, card.classList.add("resolved");
+    updateProgress();
+  };
+  // search box
+  const input = card.querySelector("input");
+  const opts = card.querySelector(".opts");
+  input.oninput = () => {
+    const v = key(input.value);
+    if (!v) { opts.classList.add("hidden"); return; }
+    const hits = MOVES.filter(m => key(m).includes(v)).slice(0, 40);
+    opts.innerHTML = "";
+    hits.forEach(h => {
+      const d = document.createElement("div");
+      d.textContent = h;
+      d.onclick = () => {
+        const b = addChip(h, h);
+        selectMapping(i, h, b);
+        opts.classList.add("hidden"); input.value = "";
+      };
+      opts.appendChild(d);
+    });
+    opts.classList.toggle("hidden", !hits.length);
+  };
+  return card;
 }
 
 function selectMapping(i, value, btn) {
   const a = AMBIG[i];
   MAPPINGS[a.name] = value;
   const card = btn.closest(".mapcard");
+  card.classList.remove("skipped");
   card.querySelectorAll(".chip").forEach(c => c.classList.remove("sel"));
   btn.classList.add("sel");
   card.classList.add("resolved");
@@ -326,8 +427,9 @@ function selectMapping(i, value, btn) {
 }
 function updateProgress() {
   const done = AMBIG.filter(a => MAPPINGS[a.name]).length;
+  const skipped = AMBIG.filter(a => MAPPINGS[a.name] === "__SKIP__").length;
   document.getElementById("mapprogress").textContent =
-    `${done} of ${AMBIG.length} resolved`;
+    `${done} of ${AMBIG.length} resolved` + (skipped ? ` (${skipped} skipped)` : "");
   document.getElementById("tostep3").disabled = done < AMBIG.length;
 }
 document.getElementById("tostep3").onclick = buildResults;
