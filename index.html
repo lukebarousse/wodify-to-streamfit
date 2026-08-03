@@ -66,6 +66,13 @@
   .autobox { border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 10px;
              padding: 12px 14px; margin-bottom: 14px; }
   .autobox .title { font-weight: 700; font-size: .92rem; margin-bottom: 6px; }
+  .sumrow { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 14px; }
+  .sumchip { border-radius: 10px; padding: 9px 14px; font-size: .86rem; font-weight: 600;
+             border: 1px solid var(--border); }
+  .sumchip b { font-size: 1.05rem; }
+  .sumchip.ok { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+  .sumchip.act { background: var(--card); border-color: var(--accent); color: var(--text); }
+  .sumchip.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
   .autorow { display: flex; align-items: center; gap: 8px; font-size: .88rem; padding: 3px 0; }
   .autorow .arrow { color: var(--muted); }
   .autorow a { margin-left: auto; font-size: .8rem; color: var(--muted); cursor: pointer;
@@ -149,9 +156,11 @@
   <!-- STEP 2: Movement cleanup -->
   <div class="card hidden" id="step2">
     <div class="step-tag">Step 2 · Match your movements</div>
-    <h2>A few movement names need your call</h2>
-    <p class="sub" style="margin-bottom:10px">StreamFit needs exact movement names. Pick the best match for each —
-    we've pre-selected our best guess.</p>
+    <h2>Match your movements to StreamFit's catalog</h2>
+    <div id="matchsummary"></div>
+    <p class="sub" style="margin-bottom:10px" id="matchsub">Most of your movement names matched
+    StreamFit's catalog exactly. The rest are below — pick the best match for each; we've
+    pre-selected our best guess.</p>
     <div class="oknote" style="margin:0 0 14px">You're only choosing the <b>movement name</b> here.
     The reps and weight of every individual result import automatically —
     <code>1 x 3 @ 315 lbs</code> becomes a 3-rep max at 315 lbs, <code>1 x 1 @ 325 lbs</code> a
@@ -332,12 +341,13 @@ function buildCleanupStep() {
   MAPPINGS = {}; AMBIG = []; AUTO = [];
   const seen = new Map();
   const repOnlyNames = new Set();
+  const exactNames = new Set();
   for (const r of liftRows()) {
     if (!r.result || /@ 0 lbs?$/.test(r.result)) continue;   // excluded later anyway
     if (!/@/.test(r.result)) { repOnlyNames.add(r.name); continue; }  // rep-based: can't import, no card
     if (MAPPINGS[r.name]) continue;
     const exact = MOVES_BY_KEY.get(key(r.name));
-    if (exact) { MAPPINGS[r.name] = exact; continue; }
+    if (exact) { MAPPINGS[r.name] = exact; exactNames.add(r.name); continue; }
     // near-match: punctuation/plural/case-only difference with exactly one candidate
     const fuzzy = MOVES_BY_FUZZY.get(fuzzyKey(r.name));
     if (fuzzy && fuzzy.length === 1) {
@@ -351,6 +361,20 @@ function buildCleanupStep() {
   for (const [name, info] of seen) {
     AMBIG.push({ name, ...info, suggestions: suggestMovements(name) });
   }
+  // top summary: make the silent successes visible
+  const nAuto = exactNames.size + AUTO.length;
+  const nTotal = nAuto + AMBIG.length;
+  const sum = document.getElementById("matchsummary");
+  sum.innerHTML = `<div class="sumrow">
+    <div class="sumchip ok">✓ <b>${nAuto}</b> of ${nTotal} names matched automatically</div>
+    ${AMBIG.length ? `<div class="sumchip act">👇 <b>${AMBIG.length}</b> need your call below</div>` : ""}
+    ${repOnlyNames.size ? `<div class="sumchip warn">✍ <b>${repOnlyNames.size}</b> gymnastics — manual entry later</div>` : ""}
+  </div>`;
+  document.getElementById("matchsub").textContent = AMBIG.length
+    ? `${nAuto} of your ${nTotal} movement names matched StreamFit's catalog automatically. ` +
+      `The ${AMBIG.length} below need your call — pick the best match for each; we've pre-selected our best guess.`
+    : `All ${nTotal} of your movement names matched StreamFit's catalog automatically — nothing to do here.`;
+
   // rep-based rows never get matching cards — they can't import anyway
   const rn = document.getElementById("reponly-note");
   const pureRepOnly = [...repOnlyNames].filter(n => !MAPPINGS[n] && !AMBIG.some(a => a.name === n));
@@ -499,11 +523,14 @@ function selectMapping(i, value, btn) {
   updateProgress();
 }
 function updateProgress() {
-  const done = AMBIG.filter(a => MAPPINGS[a.name]).length;
   const skipped = AMBIG.filter(a => MAPPINGS[a.name] === "__SKIP__").length;
-  document.getElementById("mapprogress").textContent =
-    `${done} of ${AMBIG.length} resolved` + (skipped ? ` (${skipped} skipped)` : "");
-  document.getElementById("tostep3").disabled = done < AMBIG.length;
+  const matched = AMBIG.filter(a => MAPPINGS[a.name] && MAPPINGS[a.name] !== "__SKIP__").length;
+  const left = AMBIG.length - matched - skipped;
+  const parts = [`${matched} matched`];
+  if (skipped) parts.push(`${skipped} skipped`);
+  parts.push(left ? `${left} still to resolve` : "all set — continue when ready ✓");
+  document.getElementById("mapprogress").textContent = parts.join(" · ");
+  document.getElementById("tostep3").disabled = left > 0;
 }
 document.getElementById("tostep3").onclick = () => toReview();
 document.getElementById("toDownloads").onclick = () => goStep(4);
