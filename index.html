@@ -93,7 +93,14 @@
   .autorow .arrow { color: var(--muted); }
   .autorow a { margin-left: auto; font-size: .8rem; color: var(--muted); cursor: pointer;
                text-decoration: underline; }
-  .mapname { font-weight: 700; padding-right: 28px; }
+  .mapname { font-weight: 700; padding-right: 96px; }
+  .cardlabel { font-size: .68rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+               color: var(--muted); margin-bottom: 3px; }
+  .mapbody .cardlabel { margin-top: 12px; margin-bottom: 8px; }
+  .autorow.autohead { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em;
+                      color: var(--muted); border-bottom: 1px solid var(--border);
+                      padding-bottom: 5px; margin-bottom: 3px; }
+  .autorow.autohead b { color: var(--muted); }
   .mapmeta { font-size: .82rem; color: var(--muted); margin: 2px 0 10px; white-space: pre-wrap; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip { border: 1.5px solid var(--border); background: none; color: var(--text); border-radius: 999px;
@@ -120,7 +127,28 @@
           font-size: .88rem; margin-top: 12px; }
   .oknote { background: var(--accent-soft); color: var(--accent); border-radius: 8px; padding: 10px 14px;
             font-size: .88rem; margin-top: 12px; }
-  ol.next li { margin-bottom: 10px; }
+  ol.next li { margin-bottom: 12px; }
+  ol.next ul { margin: 6px 0 0; padding-left: 20px; list-style: disc; }
+  ol.next ul li { margin-bottom: 4px; font-size: .92rem; }
+  .dl .dlcol { display: flex; flex-direction: column; gap: 5px; }
+  .dlbtn { font-size: 1.05rem; padding: 15px 24px; }
+  .dlbtn.done { background: var(--accent-soft); color: var(--accent); }
+  .dlsub { font-size: .78rem; color: var(--muted); }
+  .revlist { border: 1px solid var(--border); border-radius: 12px; margin-bottom: 4px; }
+  .revrow { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .revrow:last-child { border-bottom: none; }
+  .revhead { cursor: pointer; user-select: none; font-size: .95rem; }
+  .revhead .caret { font-size: .7rem; margin-right: 8px; color: var(--muted); }
+  .revhead .revcount { color: var(--muted); }
+  .impline { font-size: .85rem; color: var(--muted); margin-bottom: 8px; }
+  .impline b { color: var(--text); }
+  .genrow { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--border);
+            border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; font-size: .9rem; }
+  .genrow input { margin-top: 3px; accent-color: var(--accent); width: 16px; height: 16px; flex: none; }
+  .genrow.inner { border: none; border-top: 1px solid var(--border); border-radius: 0;
+                  margin: 10px 0 0; padding: 12px 0 0; }
+  .wrkhead { cursor: pointer; font-size: .95rem; user-select: none; }
+  .wrkhead .caret { font-size: .7rem; margin-right: 6px; color: var(--muted); }
   code { font-family: var(--mono); font-size: .85em; background: var(--bg); padding: 1px 5px; border-radius: 4px; }
   .dl { display: flex; gap: 12px; flex-wrap: wrap; margin: 14px 0; }
   .progress { font-size: .85rem; color: var(--muted); margin-bottom: 10px; }
@@ -206,25 +234,28 @@ Thanks!</pre>
   <div class="card hidden" id="stepReview">
     <div class="step-tag">Step 3 · Check your data</div>
     <h2>Review what will be imported</h2>
-    <p class="sub" style="margin-bottom:14px">This is your history exactly as it will go into StreamFit.
-    Click ✕ on any row you'd rather leave out — everything else is ready.</p>
+    <p class="sub" style="margin-bottom:14px">Everything below is ready to go. Want to double-check?
+    Click any section to review it line by line — otherwise just continue.</p>
     <div id="revsections"></div>
     <button class="btn" id="toDownloads">Looks good — get my files →</button>
   </div>
 
   <!-- STEP 4: Download + next steps -->
   <div class="card hidden" id="step3">
-    <div class="step-tag">Step 4 · Your import files</div>
+    <div class="step-tag">Step 4 · Download your two import files</div>
     <h2 id="summary-title">Ready to import</h2>
-    <div id="stats"></div>
     <div class="dl">
-      <button class="btn" id="dl-prs">⬇ Download PRs file</button>
-      <button class="btn" id="dl-bw">⬇ Download Benchmarks &amp; Workouts file</button>
+      <div class="dlcol">
+        <button class="btn dlbtn" id="dl-prs">⬇ Download PRs file</button>
+        <span class="dlsub"><code>performance_results_prs.csv</code> — goes into the <b>PRs</b> tab importer</span>
+      </div>
+      <div class="dlcol">
+        <button class="btn dlbtn" id="dl-bw">⬇ Download Benchmarks &amp; Workouts file</button>
+        <span class="dlsub"><code>performance_results_time_exercises.csv</code> — goes into the <b>Benchmarks</b> tab importer</span>
+      </div>
     </div>
-    <div id="manual-entry"></div>
+    <div id="stats"></div>
     <div id="excluded"></div>
-    <div class="oknote">✓ Dates are written in the US format StreamFit's importer requires —
-    uploading the raw Wodify file directly can silently re-date your whole history to today.</div>
     <button class="btn" style="margin-top:16px" onclick="goStep(5)">Continue — how to import →</button>
   </div>
 
@@ -232,15 +263,29 @@ Thanks!</pre>
   <div class="card hidden" id="step4">
     <div class="step-tag">Step 5 · Import into StreamFit</div>
     <ol class="next">
-      <li>Sign in at <a href="https://go.streamfit.com" target="_blank" rel="noopener">go.streamfit.com</a> on a computer.</li>
-      <li>Go to your profile → <b>PRs</b> tab → <b>Import</b> → tool: <b>Wodify</b> →
-          upload <code>performance_results_prs.csv</code> → <b>Preview Results</b> → check it → <b>Confirm</b>.</li>
-      <li>Go to the <b>Benchmarks</b> tab → <b>Import</b> → tool: <b>Wodify</b> →
-          upload <code>performance_results_time_exercises.csv</code> → <b>Preview Results</b> →
-          check both the <i>Benchmarks</i> and <i>Workouts</i> tabs of the preview → <b>Confirm</b>.</li>
-      <li>In the preview, spot-check that <b>dates show your real workout dates</b> (not today's date).
-          If anything looks off, don't confirm — nothing is saved until you do.</li>
+      <li><b>Sign in</b> at <a href="https://go.streamfit.com" target="_blank" rel="noopener">go.streamfit.com</a>
+        on a computer.</li>
+      <li><b>Import your PRs file</b>
+        <ul>
+          <li>Open your profile → <b>PRs</b> tab → click <b>Import</b></li>
+          <li>Import Tool: <b>Wodify</b></li>
+          <li>Click <b>Select CSV File</b> → choose <code>performance_results_prs.csv</code></li>
+          <li>Click <b>Preview Results</b> — check dates show your real workout dates (not today's)</li>
+          <li>Click <b>Confirm</b></li>
+        </ul></li>
+      <li><b>Import your Benchmarks &amp; Workouts file</b>
+        <ul>
+          <li>Open the <b>Benchmarks</b> tab → click <b>Import</b></li>
+          <li>Import Tool: <b>Wodify</b></li>
+          <li>Click <b>Select CSV File</b> → choose <code>performance_results_time_exercises.csv</code></li>
+          <li>Click <b>Preview Results</b> — check both the <i>Benchmarks</i> and <i>Workouts</i> tabs of the preview</li>
+          <li>Click <b>Confirm</b></li>
+        </ul></li>
+      <li class="hidden" id="manualstep"><b>Add your rep-based PRs by hand</b> — StreamFit's importer can't accept these
+        <div id="manual-entry"></div></li>
     </ol>
+    <p style="font-size:.9rem; color: var(--muted)">Nothing is saved until you click Confirm —
+    if a preview looks wrong, stop and don't confirm.</p>
   </div>
 
   <footer>Not affiliated with Wodify or StreamFit. Built by a gym member who didn't want to lose a decade of PRs.<br>
@@ -423,6 +468,9 @@ function buildCleanupStep() {
   }
   document.getElementById("guide").innerHTML = rows.join("");
   maxReached = 1;  // a fresh file invalidates any previously reached steps
+  // pre-check the generic-metcon toggle only when the volume risks an import timeout
+  SKIP_GENERIC = ROWS.filter(r => r.type === "Metcon" && /^metcon$/i.test(r.name)).length > 100;
+  REV_OPEN.prs = REV_OPEN.bench = REV_OPEN.work = false;
   if (!AMBIG.length && !AUTO.length && !pureRepOnly.length) { toReview(); return; }
   buildCleanupRender();
   goStep(2);
@@ -445,12 +493,13 @@ function buildCleanupRender() {
   if (AUTO.length) {
     const box = document.createElement("div");
     box.className = "autobox";
-    box.innerHTML = `<div class="title">✓ ${AUTO.length} name${AUTO.length > 1 ? "s" : ""} matched automatically
-      (spelling only — nothing to do)</div>`;
+    box.innerHTML = `<div class="title">✓ ${AUTO.length} spelling difference${AUTO.length > 1 ? "s" : ""}
+      fixed automatically — no action needed, these will import as shown</div>
+      <div class="autorow autohead"><span>From Wodify</span><span class="arrow">→</span><b>Imports as</b><a></a></div>`;
     AUTO.forEach(x => {
       const row = document.createElement("div");
       row.className = "autorow";
-      row.innerHTML = `<span></span><span class="arrow">→</span><b></b><a>change</a>`;
+      row.innerHTML = `<span></span><span class="arrow">→</span><b></b><a title="Only if this match is wrong">not right?</a>`;
       row.children[0].textContent = x.from;
       row.children[2].textContent = x.to;
       row.querySelector("a").onclick = () => demoteToCard(x.from);
@@ -462,10 +511,10 @@ function buildCleanupRender() {
   updateProgress();
 }
 
-// "1 x 3 @ 315 lbs" -> "imports as 3-rep max · 315 lbs"
+// "1 x 3 @ 315 lbs" -> "3-rep max · 315 lbs"
 function explainResult(result) {
   let m = /^(\d+) x (\d+) @ (.+)$/.exec(result);
-  if (m) return `imports as ${m[2]}-rep max · ${m[3]}`;
+  if (m) return `${m[2]}-rep max · ${m[3]}`;
   if (/^1 x \d+$/.test(result)) return "rep-based — will be listed for manual entry";
   return "";
 }
@@ -474,14 +523,18 @@ function makeCard(a, i) {
   const card = document.createElement("div");
   card.className = "mapcard"; card.id = `map-${i}`;
   const why = explainResult(a.sample);
-  const meta = `${a.count} result${a.count > 1 ? "s" : ""} · e.g. ${a.sample}` +
-    (why ? `  →  ${why}` : "") +
+  const eg = a.count > 1 ? "e.g. " : "";
+  const meta = `${a.count} result${a.count > 1 ? "s" : ""} · ${eg}${a.sample}` +
     (a.desc ? `\n${a.desc.slice(0, 110)}${a.desc.length > 110 ? "…" : ""}` : "");
+  const impline = why ? `${eg}<b>${esc(why)}</b> — for the movement:` : "";
   card.innerHTML = `<button class="skipbtn">Skip Entry ✕</button>
+    <div class="cardlabel">From Wodify</div>
     <div class="mapname"></div>
     <div class="skipnote">⚠ These results will be skipped — they won't be imported.
     Pick a match below (or search) to keep them.</div>
     <div class="mapbody"><div class="mapmeta"></div>
+    <div class="cardlabel">Import into StreamFit as</div>
+    <div class="impline">${impline}</div>
     <div class="chips"></div>
     <div class="search"><input type="text" placeholder="…or search all ${MOVES.length} StreamFit movements">
     <div class="opts hidden"></div></div></div>`;
@@ -591,6 +644,7 @@ function repSchemeFromResult(result) {
 
 let OUT = null;
 let PRE = [], BWE = [], MANUAL = [], EXCLUDED = [], SKIPPED = [];
+let SKIP_GENERIC = false; // auto-set per file: on when >100 generic metcons (StreamFit times out on huge imports)
 
 const PR_HEADER = ["Result Date","Client Name","Client ID","Workout","Program","Component","Component Type",
   "Rep Scheme","Result","Personal Record Details","Component Description","Component Comment",
@@ -638,16 +692,18 @@ function computeOutputs() {
     if (key(name) !== key(r.name)) comment = (comment + ` [Wodify name: ${r.name}]`).trim();
     let isBench = BENCH_BY_KEY.has(key(name));
     if (isBench) name = BENCH_BY_KEY.get(key(name)); // canonical casing
+    let generic = false;
     if (/^metcon$/i.test(r.name)) {
       // generic daily WODs must not collide with any benchmark named "Metcon";
       // unique names route them to the Workouts path, which keeps descriptions
       name = `Metcon ${usDate(r.date)}`;
       isBench = false;
+      generic = true;
     }
     if (!isBench && comment) desc = (desc ? desc + "\n\n" : "") + "Comment: " + comment;
     const B = v => v === true || String(v).toLowerCase() === "true" ? "True" : "False";
     BWE.push({
-      on: true, date: r.date, name, result: r.result, isBench,
+      on: generic ? !SKIP_GENERIC : true, date: r.date, name, result: r.result, isBench, generic,
       orig: key(name) !== key(r.name) && !/^metcon /i.test(name) ? r.name : "",
       csvRow: [r.customer, r.location, usDate(r.date), r.program, r.klass, r.type, r.compId, name, desc,
         r.resultType, r.repScheme, r.result, B(r.fromTotal), B(r.fromVar), B(r.isRx), B(r.isRxPlus),
@@ -687,41 +743,70 @@ function revTable(entries, cols, filterable) {
 }
 const esc = s => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
 
+const REV_OPEN = { prs: false, bench: false, work: false };
 function renderReview() {
   const host = document.getElementById("revsections");
   host.innerHTML = "";
-  const addSec = (title, node) => {
-    const d = document.createElement("div"); d.className = "revsec";
-    d.innerHTML = `<h3>${title}</h3>`;
-    if (node) d.appendChild(node);
-    host.appendChild(d);
+  const list = document.createElement("div"); list.className = "revlist";
+
+  // one visual system for all three sections: a row with caret + title + count,
+  // an optional always-visible extra (the metcon toggle), and a collapsible table
+  const addRow = (key, label, count, tableNode, extraNode) => {
+    const row = document.createElement("div"); row.className = "revrow";
+    const head = document.createElement("div"); head.className = "revhead";
+    const caret = () => (REV_OPEN[key] ? "▼" : "▶");
+    head.innerHTML = `<span class="caret">${caret()}</span><b>${label}</b><span class="revcount"> · ${count}</span>`;
+    row.appendChild(head);
+    if (extraNode) row.appendChild(extraNode);
+    const body = document.createElement("div");
+    if (tableNode) body.appendChild(tableNode);
+    body.classList.toggle("hidden", !REV_OPEN[key]);
+    body.style.marginTop = "10px";
+    row.appendChild(body);
+    head.onclick = () => {
+      REV_OPEN[key] = !REV_OPEN[key];
+      body.classList.toggle("hidden", !REV_OPEN[key]);
+      head.querySelector(".caret").textContent = caret();
+    };
+    list.appendChild(row);
   };
 
   const prs = PRE;
   prs.forEach(e => e.cells = [usDate(e.date), `<b>${esc(e.movement)}</b>` +
     (e.orig ? `<div class="renote">was: ${esc(e.orig)}</div>` : ""),
     `${esc(e.result)}<div class="imp">${esc(e.explain)}</div>`]);
-  addSec(`Personal records <span class="revcount">· ${prs.length} rows → performance_results_prs.csv</span>`,
+  if (prs.length) addRow("prs", "Personal records", `${prs.length} rows → performance_results_prs.csv`,
     revTable(prs, ["Date", "Movement", "Result"], prs.length > 15));
 
   const bench = BWE.filter(e => e.isBench);
   bench.forEach(e => e.cells = [usDate(e.date), `<b>${esc(e.name)}</b>` +
     (e.orig ? `<div class="renote">was: ${esc(e.orig)}</div>` : ""), esc(e.result)]);
-  addSec(`Benchmarks <span class="revcount">· ${bench.length} rows → performance_results_time_exercises.csv</span>`,
+  if (bench.length) addRow("bench", "Benchmarks", `${bench.length} rows → performance_results_time_exercises.csv`,
     revTable(bench, ["Date", "Benchmark", "Result"], bench.length > 15));
 
-  const works = BWE.filter(e => !e.isBench);
+  const generics = BWE.filter(e => e.generic);
+  const works = BWE.filter(e => !e.isBench && (!e.generic || !SKIP_GENERIC));
   works.forEach(e => e.cells = [usDate(e.date), esc(e.name), esc(e.result)]);
-  addSec(`Daily workouts <span class="revcount">· ${works.length} rows → same file (descriptions preserved)</span>`,
-    revTable(works, ["Date", "Workout", "Result"], works.length > 15));
-
-  if (MANUAL.length) {
-    const d = document.createElement("div"); d.className = "note";
-    d.innerHTML = `✍ ${MANUAL.length} rep-based PR${MANUAL.length > 1 ? "s" : ""} can't go through
-      StreamFit's importer (it only parses weighted results) — you'll add these by hand afterward;
-      they'll be listed with your downloads.`;
-    host.appendChild(d);
+  if (works.length || generics.length) {
+    let extra = null;
+    if (generics.length) {
+      extra = document.createElement("div"); extra.className = "genrow inner";
+      extra.innerHTML = `<input type="checkbox" id="genskip" ${SKIP_GENERIC ? "checked" : ""}>
+        <label for="genskip"><b>Leave out ${generics.length} generic Daily workouts</b>
+        (unnamed daily WODs, imported as "Metcon 4/11/2015" etc.).
+        This is recommended if you have more than 100 of them, as StreamFit's importer can time out.
+        Named workouts and benchmarks are kept either way.</label>`;
+      extra.querySelector("input").onchange = ev => {
+        SKIP_GENERIC = ev.target.checked;
+        BWE.forEach(e => { if (e.generic) e.on = !SKIP_GENERIC; });
+        renderReview();
+      };
+    }
+    addRow("work", "Daily workouts", `${works.length} rows → same file (descriptions preserved)`,
+      works.length ? revTable(works, ["Date", "Workout", "Result"], works.length > 15) : null, extra);
   }
+
+  host.appendChild(list);
 }
 const mappingsSig = () => JSON.stringify(MAPPINGS);
 let lastComputeSig = null;
@@ -736,7 +821,9 @@ function finishReview() {
       bench: BWE.filter(e => e.on && e.isBench).length,
       work: BWE.filter(e => e.on && !e.isBench).length,
       manual: MANUAL.length, excluded: EXCLUDED.length,
-      skipped: SKIPPED.length + PRE.filter(e => !e.on).length + BWE.filter(e => !e.on).length,
+      genericOff: BWE.filter(e => e.generic && !e.on).length,
+      skipped: SKIPPED.length + PRE.filter(e => !e.on).length +
+               BWE.filter(e => !e.on && !e.generic).length,
       total: ROWS.length,
     },
     manualEntry: MANUAL, excluded: EXCLUDED, skipped: SKIPPED,
@@ -756,42 +843,45 @@ function renderResults() {
   document.getElementById("stats").innerHTML =
     stats.map(([l, n]) => `<div class="stat"><span>${l}</span><b>${n}</b></div>`).join("");
 
+  // manual-entry list lives in the Import step (step 5), where the member acts on it
   const me = document.getElementById("manual-entry");
+  const ms = document.getElementById("manualstep");
   if (OUT.manualEntry.length) {
-    me.innerHTML = `<div class="note">✍ <b>Due to a StreamFit importer limitation, rep-based
-      (gymnastics) PRs can't be imported</b> — the importer only understands weighted results.
-      After importing your files, add these ${OUT.manualEntry.length} by hand:
-      profile → <b>PRs</b> tab → search the movement → add the score with its date.
+    ms.classList.remove("hidden");
+    me.innerHTML = `<ul>
+      <li>Open the <b>PRs</b> tab → search the movement → open it → add a new score with the date shown</li>
+      </ul>
+      <details class="gnames"><summary>Show the ${OUT.manualEntry.length} result${OUT.manualEntry.length > 1 ? "s" : ""} to enter</summary>
       <ul class="manual">${OUT.manualEntry.map(m => {
         const s = /^(\d+) x (\d+)$/.exec(m.result);
         const disp = !s ? esc(m.result)
           : s[1] === "1" ? `${s[2]} rep${s[2] === "1" ? "" : "s"}`
           : `${s[1]} sets of ${s[2]} rep${s[2] === "1" ? "" : "s"}`;
         return `<li><b>${esc(m.name)}</b> — ${disp} on ${m.date}</li>`;
-      }).join("")}</ul></div>`;
-  } else me.innerHTML = "";
+      }).join("")}</ul></details>`;
+  } else { ms.classList.add("hidden"); me.innerHTML = ""; }
 
   const ex = document.getElementById("excluded");
   const nWhy = why => OUT.excluded.filter(([, w]) => w === why).length;
   const blank = nWhy("blank result"), zero = nWhy("0-lb result");
   const empty = nWhy("empty row"), check = nWhy("checkmark-only");
-  const checkNames = [...new Set(OUT.excluded.filter(([, w]) => w === "checkmark-only")
-    .map(([r]) => r.name).filter(Boolean))].slice(0, 4);
   const skippedByName = {};
   OUT.skipped.forEach(r => { skippedByName[r.name] = (skippedByName[r.name] || 0) + 1; });
+  const nSkipNames = Object.keys(skippedByName).length;
   const reviewRemoved = OUT.counts.skipped - OUT.skipped.length;
   const bits = [];
-  if (blank) bits.push(`<li>${blank} row${blank > 1 ? "s" : ""} had <b>no recorded result</b> in Wodify — nothing to import</li>`);
-  if (zero) bits.push(`<li>${zero} row${zero > 1 ? "s" : ""} ${zero > 1 ? "were" : "was"} recorded at <b>0 lbs</b> — no usable data</li>`);
-  if (check) bits.push(`<li>${check} <b>check-off component${check > 1 ? "s" : ""}</b> (marked "Complete" with no score
-    — e.g. ${checkNames.map(esc).join(", ")})</li>`);
-  if (empty) bits.push(`<li>${empty} empty row${empty > 1 ? "s" : ""} in the export</li>`);
-  Object.entries(skippedByName).forEach(([n, c]) =>
-    bits.push(`<li>"<b>${esc(n)}</b>" — ${c} row${c > 1 ? "s" : ""} (you chose <i>Skip Entry</i> in the Match step)</li>`));
+  const junk = blank + zero + empty + check;
+  if (junk) bits.push(`<li>${junk} row${junk > 1 ? "s" : ""} with <b>no usable score</b>
+    (blank, 0-lb, check-off, or empty rows in the export)</li>`);
+  if (nSkipNames) bits.push(`<li>${OUT.skipped.length} row${OUT.skipped.length > 1 ? "s" : ""} you chose to
+    <b>Skip Entry</b> in the Match step
+    <details class="gnames"><summary>Show what you skipped</summary>
+    ${Object.entries(skippedByName).map(([n, c]) => `${esc(n)} (${c})`).join(" · ")}</details></li>`);
+  if (OUT.counts.genericOff) bits.push(`<li>${OUT.counts.genericOff} <b>generic Daily workouts</b>
+    (per the checkbox in Review — avoids StreamFit import timeouts)</li>`);
   if (reviewRemoved) bits.push(`<li>${reviewRemoved} row${reviewRemoved > 1 ? "s" : ""} you removed in the Review step</li>`);
   ex.innerHTML = bits.length
-    ? `<div class="note">ℹ <b>Also left out of your files</b>${OUT.manualEntry.length ?
-        " (these are different rows from the gymnastics PRs listed above)" : ""}:
+    ? `<div class="note">ℹ <b>Left out of your files:</b>
         <ul class="manual">${bits.join("")}</ul></div>`
     : "";
 }
@@ -802,8 +892,13 @@ function download(name, text) {
   a.href = URL.createObjectURL(blob); a.download = name;
   a.click(); URL.revokeObjectURL(a.href);
 }
-document.getElementById("dl-prs").onclick = () => download("performance_results_prs.csv", OUT.prs);
-document.getElementById("dl-bw").onclick = () => download("performance_results_time_exercises.csv", OUT.bw);
+const markDone = (btn, label) => { btn.classList.add("done"); btn.textContent = `✓ Downloaded — ${label}`; };
+document.getElementById("dl-prs").onclick = e => {
+  download("performance_results_prs.csv", OUT.prs); markDone(e.target, "PRs file");
+};
+document.getElementById("dl-bw").onclick = e => {
+  download("performance_results_time_exercises.csv", OUT.bw); markDone(e.target, "Benchmarks & Workouts file");
+};
 
 /* ============ stepper navigation ============ */
 const STEPS = [
