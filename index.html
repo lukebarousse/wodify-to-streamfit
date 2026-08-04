@@ -75,6 +75,16 @@
   .grow.g-act .gicon { color: var(--text); }
   .grow.g-warn .gicon { color: var(--warn); }
   .grow .gsub { display: block; color: var(--muted); font-size: .82rem; margin-top: 2px; }
+  .gethelp { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px;
+             font-size: .92rem; }
+  .gethelp summary { cursor: pointer; color: var(--accent); font-weight: 600; user-select: none; }
+  .gethelp summary:hover { text-decoration: underline; }
+  .gethelp ol { margin: 10px 0 8px; padding-left: 22px; }
+  .gethelp li { margin-bottom: 8px; }
+  .tmpl { position: relative; border: 1px solid var(--border); border-radius: 8px;
+          background: var(--bg); padding: 12px 14px; }
+  .tmpl pre { margin: 0; font-family: inherit; font-size: .88rem; white-space: pre-wrap; }
+  .tmpl .chip { position: absolute; top: 8px; right: 8px; background: var(--card); }
   .gnames { margin: 6px 0 2px; font-size: .85rem; }
   .gnames summary { cursor: pointer; color: var(--accent); font-weight: 600; user-select: none; }
   .gnames summary:hover { text-decoration: underline; }
@@ -156,6 +166,29 @@
       <input type="file" id="fileinput" accept=".xlsx,.csv" style="display:none">
     </div>
     <p class="privacy">🔒 Everything runs in your browser. Your data is never uploaded anywhere.</p>
+    <details class="gethelp">
+      <summary>Don't have your Wodify export yet? Here's how to get it</summary>
+      <ol>
+        <li><b>You can't download this file yourself</b> — Wodify removed self-service export from
+          the website and app. You have to request it, and Wodify support will
+          <b>email the Excel file back to you</b> (usually takes a few days, so do this early).</li>
+        <li>Email <a href="mailto:support@wodify.com">support@wodify.com</a>
+          <b>from the email address tied to your Wodify account</b>. Copy-paste template:</li>
+      </ol>
+      <div class="tmpl">
+        <button class="chip" id="copyTmpl">📋 Copy</button>
+        <pre id="tmplText">Hi Wodify Support,
+
+I'd like a full export of my performance history from my Wodify account. Please include weightlifting, metcons, PRs, and gymnastics.
+
+My account email is: [your email]
+My gym is: [your gym name]
+
+Thanks!</pre>
+      </div>
+      <p style="font-size:.88rem; margin:10px 0 4px">When the file arrives — named like
+      <code>UserId1234567_PerformanceResults_123456.xlsx</code> — come back here and drop it in above.</p>
+    </details>
     <div id="parse-error" class="note hidden"></div>
   </div>
 
@@ -814,6 +847,12 @@ function show(id) {
   const s = STEPS.find(x => x.card === id);
   if (s) goStep(s.n);
 }
+document.getElementById("copyTmpl").onclick = e => {
+  navigator.clipboard.writeText(document.getElementById("tmplText").textContent).then(() => {
+    e.target.textContent = "✓ Copied";
+    setTimeout(() => { e.target.textContent = "📋 Copy"; }, 1500);
+  });
+};
 const dz = document.getElementById("dropzone");
 const fi = document.getElementById("fileinput");
 dz.onclick = () => fi.click();
